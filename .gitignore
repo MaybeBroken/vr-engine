@@ -39,3 +39,38 @@
 
 # debug information files
 *.dwo
+
+# Android/Gradle
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+
+# Android Studio
+*.iml
+.idea/
+.gradle/
+local.properties
+
+# NDK
+obj/
+.externalNativeBuild/
+.cxx/
+
+# Gradle
+.gradle/
+build/
+gradle-wrapper.jar
