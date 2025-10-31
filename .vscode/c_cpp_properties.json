@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Win64-Clang",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/dev/OpenXR-SDK/include/",
+                "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\ndk\\21.4.7075529\\sysroot\\usr\\include\\",
+                "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\ndk\\21.4.7075529\\sysroot\\usr\\include\\aarch64-linux-android\\",
+                "C:\\Users\\david\\git\\OpenXR\\"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "clang-x64",
+        }
+    ],
+    "version": 4
+}

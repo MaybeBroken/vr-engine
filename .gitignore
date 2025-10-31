@@ -74,3 +74,6 @@ obj/
 .gradle/
 build/
 gradle-wrapper.jar
+
+XrSamples/VrEngine/Projects/Android/build/
+XrSamples/VrEngine/Projects/Android/.cxx/
