@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "Win64-Clang",
+            "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
                 "C:/dev/OpenXR-SDK/include/",
@@ -18,7 +18,7 @@
             "compilerPath": "cl.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "clang-x64",
+            "intelliSenseMode": "${default}"
         }
     ],
     "version": 4

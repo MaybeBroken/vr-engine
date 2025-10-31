@@ -9,12 +9,6 @@
     },
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
-        "clang-diagnostic-error",
     ],
-    "C_Cpp.intelliSenseEngine": "Default",
-    "C_Cpp.intelliSenseEngineFallback": "Enabled",
-    "C_Cpp.diagnostic.loggingLevel": "None",
-    "C_Cpp.diagnostics.disabled": [
-        "clang-diagnostic-error"
-    ]
+    "C_Cpp.intelliSenseEngine": "default",
 }
