@@ -124,6 +124,6 @@ class Compiler:
 
 
 if __name__ == "__main__":
-    sample_project = Project("SampleProject")
+    sample_project = Project("Test")
     compiler = Compiler(sample_project)
     compiler.compile()
