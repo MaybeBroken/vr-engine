@@ -16,46 +16,67 @@ PFN_xrGetDeviceSampleRateFB xrGetDeviceSampleRateFB = nullptr;
 #include "Input/ControllerRenderer.h"
 #include "Input/TinyUI.h"
 #include "Render/SimpleBeamRenderer.h"
-// #INCLUDES_MARKER
 
-class XrControllersApp : public OVRFW::XrApp
+// INCLUDES_ENTRY
+
+//
+
+// INCLUDES_END
+// VAR_SPACE_ENTRY
+
+//
+
+// VAR_SPACE_EXIT
+// CLASS_ENTRY>@delimiter=VrEngine
+class VrEngine : public OVRFW::XrApp
 {
 public:
-    XrControllersApp() : OVRFW::XrApp()
+    // PUBLIC_ENTRY
+
+    // CLASS_INIT_ENTRY
+    VrEngine() : OVRFW::XrApp()
     {
         BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 1.0f);
         OpenXRVersion = XR_API_VERSION_1_1;
     }
+    // CLASS_INIT_EXIT
 
     // Returns a list of OpenXr extensions needed for this app
+    // APP_EXTENSIONS_ENTRY
     virtual std::vector<const char *> GetExtensions() override
     {
         std::vector<const char *> extensions = XrApp::GetExtensions();
+        // APP_EXTENSIONS_MOD_ENTRY
+
+        // APP_EXTENSIONS_MOD_EXIT
         return extensions;
     }
+    // APP_EXTENSIONS_EXIT
 
+    // APP_INIT_ENTRY
     // Must return true if the application initializes successfully.
     virtual bool AppInit(const xrJava *context) override
     {
-        if (false == ui_.Init(context, GetFileSys()))
-        {
-            ALOG("TinyUI::Init FAILED.");
-            return false;
-        }
+        // APP_INIT_MOD_ENTRY
 
+        // APP_INIT_MOD_EXIT
         return true;
     }
+    // APP_INIT_EXIT
 
+    // APP_SHUTDOWN_ENTRY
     virtual void AppShutdown(const xrJava *context) override
     {
-        /// unhook extensions
-
+        // APP_SHUTDOWN_MOD_ENTRY
         OVRFW::XrApp::AppShutdown(context);
-        ui_.Shutdown();
+        // APP_SHUTDOWN_MOD_EXIT
     }
+    // APP_SHUTDOWN_EXIT
 
+    // SESSION_INIT_ENTRY
     virtual bool SessionInit() override
     {
+        // SESSION_INIT_MOD_ENTRY
         /// Use LocalSpace instead of Stage Space.
         CurrentSpace = LocalSpace;
         /// Init session bound objects
@@ -69,24 +90,27 @@ public:
             ALOG("AppInit::Init R controller renderer FAILED.");
             return false;
         }
-        beamRenderer_.Init(GetFileSys(), nullptr, OVR::Vector4f(1.0f), 1.0f);
 
         return true;
+        // SESSION_INIT_MOD_EXIT
     }
+    // SESSION_INIT_EXIT
 
+    // SESSION_END_ENTRY
     virtual void SessionEnd() override
     {
+        // SESSION_END_MOD_ENTRY
         controllerRenderL_.Shutdown();
         controllerRenderR_.Shutdown();
-        beamRenderer_.Shutdown();
+        // SESSION_END_MOD_EXIT
     }
+    // SESSION_END_EXIT
 
     // Update state
+    // UPDATE_ENTRY
     virtual void Update(const OVRFW::ovrApplFrameIn &in) override
     {
-
-        /*
-         */
+        // UPDATE_MOD_ENTRY
 
         if (in.LeftRemoteTracked)
         {
@@ -96,20 +120,15 @@ public:
         {
             controllerRenderR_.Update(in.RightRemotePose);
         }
-        ui_.Update(in);
-
-        /// Add some deliberate lag to the app
-        if (delayUI_)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        }
+        // UPDATE_MOD_EXIT
     }
+    // UPDATE_EXIT
 
     // Render eye buffers while running
+    // RENDER_ENTRY
     virtual void Render(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override
     {
-        /// Render UI
-        ui_.Render(in, out);
+        // RENDER_MOD_ENTRY
         /// Render controllers
         if (in.LeftRemoteTracked)
         {
@@ -119,21 +138,19 @@ public:
         {
             controllerRenderR_.Render(out.Surfaces);
         }
-
-        /// Render beams
-        beamRenderer_.Render(in, out);
+        // RENDER_MOD_EXIT
     }
+    // RENDER_EXIT
+    // PUBLIC_EXIT
 
-public:
 private:
+    // PRIVATE_ENTRY
     OVRFW::ControllerRenderer controllerRenderL_;
     OVRFW::ControllerRenderer controllerRenderR_;
-    OVRFW::TinyUI ui_;
-    OVRFW::SimpleBeamRenderer beamRenderer_;
-    std::vector<OVRFW::ovrBeamRenderer::handle_t> beams_;
-
-    /// UI lag
-    bool delayUI_ = false;
+    // PRIVATE_EXIT
 };
+// CLASS_EXIT
 
-ENTRY_POINT(XrControllersApp)
+// ENTRY_POINT_INIT
+ENTRY_POINT(VrEngine)
+// ENTRY_POINT_EXIT
