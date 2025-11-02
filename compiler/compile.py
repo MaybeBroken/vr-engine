@@ -1,19 +1,19 @@
 """
-This is a program madfe to compile VR projects into C++ and generate the necessary OpenXR/Android Studio project
+This is a program made to compile VR projects into C++ and generate the necessary OpenXR/Android Studio project
 """
 
 import glob
 import os
 import pathlib
-from shutil import copy
+import shutil
 
 try:
     XR_PROJECTS_ROOT = pathlib.Path("../XrSamples/").resolve()
     TEMPLATE_ROOT = XR_PROJECTS_ROOT / "VrEngine"
     TEMPLATE_EXCLUDES = [
-        TEMPLATE_ROOT / "Project/Android/.cxx/",
-        TEMPLATE_ROOT / "Project/Android/build/",
-        TEMPLATE_ROOT / "Project/Android/.gradle/",
+        "Projects/Android/.cxx/",
+        "Projects/Android/build/",
+        "Projects/Android/.gradle/",
     ]
 except Exception:
     exit(
@@ -21,6 +21,9 @@ except Exception:
     )
 
 PROJECTS_DIR = pathlib.Path("./projects/").resolve()
+
+C_FILES = "Src"
+ASSETS_DIR = "assets"
 
 
 class Indicators:
@@ -93,21 +96,33 @@ class Indicators:
 
 def parse_template_project(context: "Compiler"):
     NEW_PROJECT_DIR = XR_PROJECTS_ROOT / context.project.name
-    template_files = glob.glob(str(TEMPLATE_ROOT) + "/**/*", recursive=True)
-    for file_path in template_files:
-        file_path_obj = pathlib.Path(file_path)
+    template_files = list(TEMPLATE_ROOT.rglob("*"))
+    for file_path_obj in template_files:
         if any(
-            str(file_path_obj).startswith(str(exclude)) for exclude in TEMPLATE_EXCLUDES
+            (
+                hasattr(pathlib.Path, "is_relative_to")
+                and file_path_obj.is_relative_to(exclude)
+            )
+            or str(file_path_obj).startswith(str(exclude))
+            for exclude in TEMPLATE_EXCLUDES
         ):
             continue
-        if os.path.isdir(file_path_obj):
+        if file_path_obj.is_dir():
             continue
         relative_path = file_path_obj.relative_to(TEMPLATE_ROOT)
         new_file_path = NEW_PROJECT_DIR / relative_path
         new_file_path.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Copying {file_path_obj} to {new_file_path}")
-        copy(file_path_obj, new_file_path)
+        shutil.copy(file_path_obj, new_file_path)
+    for exclude in TEMPLATE_EXCLUDES:
+        excluded_path = NEW_PROJECT_DIR / exclude
+        if excluded_path.exists():
+            if excluded_path.is_dir():
+
+                shutil.rmtree(excluded_path)
+            else:
+                os.remove(excluded_path)
     print(f"Project {context.project.name} created at {NEW_PROJECT_DIR}")
+    return NEW_PROJECT_DIR
 
 
 class Parser:
@@ -117,7 +132,40 @@ class Parser:
 
 class Project:
     def __init__(self, name):
-        self.name = name
+        path = PROJECTS_DIR / name
+        if not path.exists():
+            raise FileNotFoundError(f"Project {name} does not exist in {PROJECTS_DIR}")
+        self.name: str = name
+        self.path: pathlib.Path = path
+        self.assets_dir: pathlib.Path = self.path / ASSETS_DIR
+        self.src_dir: pathlib.Path = self.path / C_FILES
+        self.source_files: list[pathlib.Path] = []
+        self.asset_files: list[pathlib.Path] = []
+        print(
+            f"Building project {self.name} located at {self.path}, scanning source files in {self.src_dir} and assets in {self.assets_dir}"
+        )
+        self.build_project()
+
+    def resolve_src_files(self) -> list[pathlib.Path]:
+        csource_files = glob.glob(str(self.src_dir) + "/**/*.csource", recursive=True)
+        return [pathlib.Path(f) for f in csource_files]
+
+    def resolve_asset_files(self) -> list[pathlib.Path]:
+        asset_files = glob.glob(str(self.assets_dir) + "/**/*", recursive=True)
+        return [pathlib.Path(f) for f in asset_files if os.path.isfile(f)]
+
+    def build_project(self):
+        self.source_files = self.resolve_src_files()
+        self.asset_files = self.resolve_asset_files()
+        main_file = self.src_dir / (self.name + ".csource")
+        if main_file not in self.source_files:
+            raise FileNotFoundError(
+                f"Main source file {main_file} not found in project {self.name}"
+            )
+        # If we reach this point, the project is valid
+        print(
+            f"Project {self.name} is valid. Loading {len(self.source_files)} source files and {len(self.asset_files)} asset files."
+        )
 
 
 class Compiler:
@@ -127,10 +175,14 @@ class Compiler:
 
     def compile(self):
         parse_template_project(self)
+        self.assemble_source()
         pass
+
+    def assemble_source(self):
+        self.project
 
 
 if __name__ == "__main__":
-    sample_project = Project("Test")
+    sample_project = Project("test")
     compiler = Compiler(sample_project)
     compiler.compile()

@@ -5,6 +5,7 @@
         "*.py": "python",
         "*.md": "markdown",
         "*.glb": "json",
+        "*.csource": "cpp",
         "string.h": "c",
         "array": "cpp",
         "bitset": "cpp",
@@ -25,7 +26,8 @@
         "thread": "cpp",
         "algorithm": "cpp",
         "xiosbase": "cpp",
-        "xlocale": "cpp"
+        "xlocale": "cpp",
+        "sstream": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [

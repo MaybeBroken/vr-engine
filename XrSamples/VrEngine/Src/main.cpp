@@ -1,25 +1,16 @@
+// INCLUDES_ENTRY
 #include <cstdint>
 #include <cstdio>
 #include <algorithm>
 #include <openxr/openxr.h>
-
 #include <sstream>
 #include <iomanip>
 #include <thread>
 #include <chrono>
-
 #include "XrApp.h"
-
-// PCM Haptic API
-PFN_xrGetDeviceSampleRateFB xrGetDeviceSampleRateFB = nullptr;
-
 #include "Input/ControllerRenderer.h"
 #include "Input/TinyUI.h"
 #include "Render/SimpleBeamRenderer.h"
-
-// INCLUDES_ENTRY
-
-//
 
 // INCLUDES_END
 // VAR_SPACE_ENTRY
