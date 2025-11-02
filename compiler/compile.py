@@ -33,7 +33,13 @@ def str_format(s: str) -> str:
     formatted_lines = []
     for line in lines:
         stripped_line = line.strip()
-        if stripped_line.startswith("//") or stripped_line == "":
+        if (
+            stripped_line.startswith("//")
+            or stripped_line == ""
+            or stripped_line.startswith("/*")
+            or stripped_line.endswith("*/")
+            or stripped_line == "#OVERRIDE"
+        ):
             continue
         formatted_lines.append(line)
     return "\n".join(formatted_lines)
