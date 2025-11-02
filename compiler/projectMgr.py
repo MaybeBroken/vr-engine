@@ -203,13 +203,28 @@ class ProjectViewer(QWidget):
             QLabel,
             QPlainTextEdit,
             QListWidgetItem,
+            QStackedWidget,
+            QScrollArea,
+            QTreeWidget,
+            QTreeWidgetItem,
+            QToolBar,
+            QFileDialog,
+            QSlider,
         )
         from PySide6.QtGui import (
             QSyntaxHighlighter,
             QTextCharFormat,
             QColor,
             QFont,
+            QImage,
+            QPixmap,
+            QFontDatabase,
         )
+        from PySide6.QtGui import QAction
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtGui import QIcon
+        from PySide6.QtCore import QByteArray
+        from PySide6.QtGui import QImageReader
 
         class CppHighlighter(QSyntaxHighlighter):
             def __init__(self, parent):
@@ -433,17 +448,98 @@ class ProjectViewer(QWidget):
 
         splitter.addWidget(leftPane)
 
-        # Right pane (editor)
+        # Right pane (stacked viewers: editor, image, archive, font, media, info)
         rightPane = QWidget(self)
         rightLayout = QVBoxLayout(rightPane)
         rightLayout.setContentsMargins(0, 0, 0, 0)
 
+        self.viewerStack = QStackedWidget(self)
+        rightLayout.addWidget(self.viewerStack)
+
+        # 0 - Text editor (for code/text files)
         self.editor = QPlainTextEdit(self)
         self.editor.setTabStopDistance(
             4 * self.editor.fontMetrics().horizontalAdvance(" ")
         )
         self.editor.textChanged.connect(self._onTextChanged)
-        rightLayout.addWidget(self.editor)
+        self.viewerStack.addWidget(self.editor)
+
+        # 1 - Image viewer
+        self.imageScroll = QScrollArea(self)
+        self.imageScroll.setWidgetResizable(True)
+        self.imageLabel = QLabel()
+        self.imageLabel.setAlignment(Qt.AlignCenter)
+        self.imageLabel.setBackgroundRole(self.imageLabel.backgroundRole())
+        self.imageScroll.setWidget(self.imageLabel)
+        self.viewerStack.addWidget(self.imageScroll)
+
+        # 2 - Archive browser (zip/tar)
+        self.archivePane = QWidget(self)
+        from PySide6.QtWidgets import QVBoxLayout as _QVBox
+
+        _al = _QVBox(self.archivePane)
+        _al.setContentsMargins(0, 0, 0, 0)
+        self.archiveToolbar = QToolBar(self.archivePane)
+        self.actionExtract = QAction("Extract…", self.archiveToolbar)
+        self.archiveToolbar.addAction(self.actionExtract)
+        _al.addWidget(self.archiveToolbar)
+        self.archiveTree = QTreeWidget(self.archivePane)
+        self.archiveTree.setHeaderLabels(["Name", "Size", "Type"])
+        _al.addWidget(self.archiveTree, 1)
+        self.viewerStack.addWidget(self.archivePane)
+
+        # 3 - Font preview
+        self.fontPane = QWidget(self)
+        _fl = _QVBox(self.fontPane)
+        _fl.setContentsMargins(8, 8, 8, 8)
+        self.fontSample = QLabel(
+            "The quick brown fox jumps over the lazy dog 0123456789", self.fontPane
+        )
+        self.fontSample.setWordWrap(True)
+        self.fontSizeSlider = QSlider(Qt.Horizontal, self.fontPane)
+        self.fontSizeSlider.setMinimum(6)
+        self.fontSizeSlider.setMaximum(96)
+        self.fontSizeSlider.setValue(20)
+        _fl.addWidget(self.fontSample)
+        _fl.addWidget(QLabel("Size:"))
+        _fl.addWidget(self.fontSizeSlider)
+        self.viewerStack.addWidget(self.fontPane)
+
+        # 4 - Media player (audio/video)
+        self.mediaPane = QWidget(self)
+        _ml = _QVBox(self.mediaPane)
+        _ml.setContentsMargins(0, 0, 0, 0)
+        self.mediaToolbar = QToolBar(self.mediaPane)
+        self.actionPlayPause = QAction("Play", self.mediaToolbar)
+        self.mediaToolbar.addAction(self.actionPlayPause)
+        _ml.addWidget(self.mediaToolbar)
+        # Try to import multimedia; if unavailable, we'll fallback to info view
+        self._multimedia_ok = True
+        try:
+            from PySide6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+
+            self._QVideoWidget = QVideoWidget
+            self._QMediaPlayer = QMediaPlayer
+            self._QAudioOutput = QAudioOutput
+        except Exception:
+            self._multimedia_ok = False
+            self._QVideoWidget = None
+            self._QMediaPlayer = None
+            self._QAudioOutput = None
+        if self._multimedia_ok:
+            self.videoWidget = self._QVideoWidget(self.mediaPane)
+            _ml.addWidget(self.videoWidget, 1)
+        else:
+            self.videoWidget = QLabel("QtMultimedia not available", self.mediaPane)
+            self.videoWidget.setAlignment(Qt.AlignCenter)
+            _ml.addWidget(self.videoWidget, 1)
+        self.viewerStack.addWidget(self.mediaPane)
+
+        # 5 - Generic info view
+        self.infoView = QPlainTextEdit(self)
+        self.infoView.setReadOnly(True)
+        self.viewerStack.addWidget(self.infoView)
 
         splitter.addWidget(rightPane)
         splitter.setStretchFactor(1, 1)
@@ -461,9 +557,16 @@ class ProjectViewer(QWidget):
         self.saveButton.clicked.connect(self.saveCurrentFile)
         self.srcList.itemDoubleClicked.connect(self._openFromList)
         self.assetList.itemDoubleClicked.connect(self._openFromList)
+        self.actionExtract.triggered.connect(self._extractArchive)
+        self.fontSizeSlider.valueChanged.connect(self._updateFontSampleSize)
+        self.actionPlayPause.triggered.connect(self._togglePlayPause)
 
         # Populate lists
         self.populateLists()
+
+        # Media state
+        self._player = None
+        self._audioOut = None
 
     def closeEvent(self, e):
         # Ask to save if dirty
@@ -523,13 +626,112 @@ class ProjectViewer(QWidget):
         self.openFile(abs_path)
 
     def _is_text(self, path):
+        # Heuristic: try utf-8 decode; if fail, but content mostly printable and has newlines, accept as text
         try:
             with open(path, "rb") as fh:
-                chunk = fh.read(2048)
-            chunk.decode("utf-8")
-            return True
+                chunk = fh.read(65536)
+            try:
+                chunk.decode("utf-8")
+                return True
+            except UnicodeDecodeError:
+                txt = chunk.decode("latin-1", errors="ignore")
+                printable = sum(1 for c in txt if c.isprintable() or c in "\r\n\t")
+                return printable / max(1, len(txt)) > 0.9 and (
+                    "\n" in txt or "\r" in txt
+                )
         except Exception:
             return False
+
+    # -------- Detection and routing --------
+    def detect_file_type(self, path):
+        import struct
+        from PySide6.QtGui import QImageReader
+
+        result = {"type": "unknown", "subtype": None}
+        try:
+            with open(path, "rb") as f:
+                head = f.read(4096)
+        except Exception:
+            return result
+
+        # Images via QImageReader (sniffs header)
+        try:
+            if QImageReader.imageFormat(path):
+                return {"type": "image"}
+        except Exception:
+            pass
+
+        # Fonts
+        if head.startswith(b"\x00\x01\x00\x00") or head.startswith(b"OTTO"):
+            return {"type": "font", "subtype": "otf/ttf"}
+        if head.startswith(b"wOFF"):
+            return {"type": "font", "subtype": "woff"}
+        if head.startswith(b"wOF2"):
+            return {"type": "font", "subtype": "woff2"}
+
+        # Archives
+        if head.startswith(b"PK\x03\x04"):
+            return {"type": "archive", "subtype": "zip"}
+        if head.startswith(b"\x1f\x8b\x08"):
+            return {"type": "archive", "subtype": "gzip"}
+        if head.startswith(b"ustar") or b"ustar\x00" in head[:512]:
+            return {"type": "archive", "subtype": "tar"}
+        if head.startswith(b"7z\xbc\xaf'\x1c"):
+            return {"type": "archive", "subtype": "7z"}
+        if head.startswith(b"Rar!\x1a\x07\x00") or head.startswith(
+            b"Rar!\x1a\x07\x01\x00"
+        ):
+            return {"type": "archive", "subtype": "rar"}
+
+        # 3D models
+        if head[:4] == b"glTF":
+            return {"type": "3d", "subtype": "glb"}
+        # OBJ or ASCII STL: try textual hints
+        try:
+            txt = head.decode("utf-8", errors="ignore")
+            if txt.lstrip().startswith("{") and '"asset"' in txt and '"scenes"' in txt:
+                return {"type": "3d", "subtype": "gltf"}
+            if txt.lstrip().startswith("solid "):
+                return {"type": "3d", "subtype": "stl-ascii"}
+            if any(
+                line.startswith(("v ", "vn ", "vt ", "f ", "mtllib ", "o "))
+                for line in txt.splitlines()[:50]
+            ):
+                return {"type": "3d", "subtype": "obj"}
+        except Exception:
+            pass
+        # Binary STL: 80-byte header then uint32 tri count; ambiguous but common
+        if len(head) >= 84:
+            tri = struct.unpack("<I", head[80:84])[0]
+            if tri > 0 and tri < 10_000_000:
+                return {"type": "3d", "subtype": "stl-bin"}
+        # FBX
+        if head.startswith(b"Kaydara FBX Binary  \x00\x1a\x00"):
+            return {"type": "3d", "subtype": "fbx"}
+
+        # Media (audio/video)
+        if head.startswith(b"ID3") or head[:2] == b"\xff\xfb":
+            return {"type": "media", "subtype": "mp3"}
+        if head.startswith(b"RIFF") and b"WAVE" in head[8:16]:
+            return {"type": "media", "subtype": "wav"}
+        if head.startswith(b"OggS"):
+            return {"type": "media", "subtype": "ogg"}
+        if head[4:8] == b"ftyp":
+            return {"type": "media", "subtype": "mp4/mov"}
+        if head.startswith(b"fLaC"):
+            return {"type": "media", "subtype": "flac"}
+        if head.startswith(b"\x1a\x45\xdf\xa3"):
+            return {"type": "media", "subtype": "mkv/webm"}
+
+        # PDF / others
+        if head.startswith(b"%PDF-"):
+            return {"type": "doc", "subtype": "pdf"}
+
+        # Text fallback
+        if self._is_text(path):
+            return {"type": "text"}
+
+        return result
 
     def openFile(self, path):
         if self._dirty and self.currentFilePath:
@@ -548,27 +750,28 @@ class ProjectViewer(QWidget):
             QMessageBox.warning(self, "Open File", "File not found.")
             return
 
-        if not self._is_text(path):
-            QMessageBox.information(
-                self, "Open Asset", "Binary asset preview not supported."
-            )
-            return
+        # Detect and route
+        ftype = self.detect_file_type(path)
+        self.currentFilePath = path
+        self._dirty = False
+        self._updateTitle()
 
         try:
-            text = None
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    text = f.read()
-            except UnicodeDecodeError:
-                with open(path, "r", encoding="latin-1", errors="replace") as f:
-                    text = f.read()
-            self.editor.blockSignals(True)
-            self.editor.setPlainText(text or "")
-            self.editor.blockSignals(False)
-            self.currentFilePath = path
-            self._dirty = False
-            self._updateTitle()
-            self.saveButton.setEnabled(True)
+            if ftype["type"] == "text":
+                self._showTextFile(path)
+            elif ftype["type"] == "image":
+                self._showImage(path)
+            elif ftype["type"] == "archive":
+                self._showArchive(path, ftype.get("subtype"))
+            elif ftype["type"] == "font":
+                self._showFont(path)
+            elif ftype["type"] in ("media",):
+                self._showMedia(path)
+            elif ftype["type"] in ("3d", "doc", "unknown"):
+                # Provide generic info panel with some parsed metadata
+                self._showInfo(path, ftype)
+            else:
+                self._showInfo(path, ftype)
         except Exception as e:
             QMessageBox.critical(self, "Open File", f"Failed to open file:\n{e}")
 
@@ -601,6 +804,193 @@ class ProjectViewer(QWidget):
 
     def buildProject(self):
         build_project(self.project_name, open_in_android_studio=True)
+
+    # -------- View helpers --------
+    def _setView(self, idx):
+        self.viewerStack.setCurrentIndex(idx)
+        # Save button only enabled for text editor
+        self.saveButton.setEnabled(idx == 0 and self.currentFilePath is not None)
+
+    def _showTextFile(self, path):
+        try:
+            text = None
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    text = f.read()
+            except UnicodeDecodeError:
+                with open(path, "r", encoding="latin-1", errors="replace") as f:
+                    text = f.read()
+            self.editor.blockSignals(True)
+            self.editor.setPlainText(text or "")
+            self.editor.blockSignals(False)
+            self._dirty = False
+            self._setView(0)
+        except Exception as e:
+            raise
+
+    def _showImage(self, path):
+        from PySide6.QtGui import QImageReader, QPixmap
+
+        reader = QImageReader(path)
+        reader.setAutoTransform(True)
+        img = reader.read()
+        if img.isNull():
+            self._showInfo(path, {"type": "image", "error": reader.errorString()})
+            return
+        pix = QPixmap.fromImage(img)
+        self.imageLabel.setPixmap(pix)
+        self.imageLabel.adjustSize()
+        self._setView(1)
+
+    def _showArchive(self, path, subtype):
+        import zipfile, tarfile, os
+        from PySide6.QtWidgets import QTreeWidgetItem
+
+        self.archiveTree.clear()
+        items = []
+        handled = False
+        if subtype == "zip" or (subtype is None and zipfile.is_zipfile(path)):
+            handled = True
+            with zipfile.ZipFile(path) as zf:
+                for zi in zf.infolist():
+                    size = zi.file_size
+                    name = zi.filename
+                    typ = "dir" if name.endswith("/") else "file"
+                    it = QTreeWidgetItem([name, str(size), typ])
+                    self.archiveTree.addTopLevelItem(it)
+        elif subtype in ("tar", "gzip") or tarfile.is_tarfile(path):
+            handled = True
+            with tarfile.open(path, "r:*") as tf:
+                for ti in tf.getmembers():
+                    size = ti.size
+                    name = ti.name
+                    typ = "dir" if ti.isdir() else "file"
+                    it = QTreeWidgetItem([name, str(size), typ])
+                    self.archiveTree.addTopLevelItem(it)
+        if not handled:
+            # Unsupported archives (7z/rar)
+            self.archiveTree.addTopLevelItem(
+                QTreeWidgetItem(["Unsupported archive format", "", subtype or "?"])
+            )
+        self.archiveTree.resizeColumnToContents(0)
+        self._setView(2)
+
+    def _extractArchive(self):
+        if self.viewerStack.currentIndex() != 2 or not self.currentFilePath:
+            return
+        from PySide6.QtWidgets import QFileDialog
+
+        dest = QFileDialog.getExistingDirectory(self, "Extract to…", self.project_root)
+        if not dest:
+            return
+        import zipfile, tarfile
+
+        try:
+            if zipfile.is_zipfile(self.currentFilePath):
+                with zipfile.ZipFile(self.currentFilePath) as zf:
+                    zf.extractall(dest)
+            elif tarfile.is_tarfile(self.currentFilePath):
+                with tarfile.open(self.currentFilePath, "r:*") as tf:
+                    tf.extractall(dest)
+            else:
+                QMessageBox.information(self, "Extract", "Unsupported archive type.")
+                return
+            QMessageBox.information(self, "Extract", f"Extracted to: {dest}")
+        except Exception as e:
+            QMessageBox.critical(self, "Extract", f"Extraction failed:\n{e}")
+
+    def _showFont(self, path):
+        from PySide6.QtGui import QFontDatabase, QFont
+
+        db = QFontDatabase()
+        fid = QFontDatabase.addApplicationFont(path)
+        if fid < 0:
+            self.fontSample.setText("Failed to load font.")
+            self._setView(3)
+            return
+        fams = QFontDatabase.applicationFontFamilies(fid)
+        fam = fams[0] if fams else None
+        if fam:
+            f = QFont(fam, self.fontSizeSlider.value())
+            self.fontSample.setFont(f)
+            self.fontSample.setText(self.fontSample.text())
+        else:
+            self.fontSample.setText("Loaded font, but no family reported.")
+        self._setView(3)
+
+    def _updateFontSampleSize(self, val):
+        f = self.fontSample.font()
+        f.setPointSize(val)
+        self.fontSample.setFont(f)
+
+    def _showMedia(self, path):
+        if not self._multimedia_ok:
+            self._showInfo(
+                path, {"type": "media", "note": "QtMultimedia not available"}
+            )
+            return
+        # Teardown old player if any
+        try:
+            if self._player is not None:
+                self._player.stop()
+        except Exception:
+            pass
+        from PySide6.QtCore import QUrl
+
+        self._player = self._QMediaPlayer(self)
+        self._audioOut = self._QAudioOutput(self)
+        self._player.setAudioOutput(self._audioOut)
+        self._player.setVideoOutput(self.videoWidget)
+        self._player.setSource(QUrl.fromLocalFile(os.path.abspath(path)))
+        self.actionPlayPause.setText("Play")
+        self._setView(4)
+
+    def _togglePlayPause(self):
+        if self.viewerStack.currentIndex() != 4 or not self._player:
+            return
+        st = self._player.playbackState()
+        from PySide6.QtMultimedia import QMediaPlayer
+
+        if st == QMediaPlayer.PlaybackState.PlayingState:
+            self._player.pause()
+            self.actionPlayPause.setText("Play")
+        else:
+            self._player.play()
+            self.actionPlayPause.setText("Pause")
+
+    def _showInfo(self, path, ftype):
+        # Build a simple info dump with metadata and hex preview
+        try:
+            size = os.path.getsize(path)
+        except Exception:
+            size = None
+        info = []
+        info.append(f"Path: {path}")
+        if size is not None:
+            info.append(f"Size: {size} bytes")
+        if ftype:
+            info.append(f"Detected: {ftype}")
+        try:
+            with open(path, "rb") as f:
+                head = f.read(512)
+            hexstr = " ".join(f"{b:02X}" for b in head)
+            info.append("\nHeader (first 512 bytes):")
+            info.append(hexstr)
+        except Exception:
+            pass
+        # Special cases: glb header
+        try:
+            with open(path, "rb") as f:
+                head = f.read(12)
+            if head[:4] == b"glTF":
+                import struct
+
+                version, length = struct.unpack("<II", head[4:12])
+                info.append(f"\nGLB: version={version}, totalLength={length}")
+        except Exception:
+            pass
+        self.infoView.setPlainText("\n".join(info))
+        self._setView(5)
 
 
 if __name__ == "__main__":
