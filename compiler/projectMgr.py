@@ -2,20 +2,26 @@ import shutil
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QPushButton,
     QListWidget,
     QMessageBox,
     QLineEdit,
-    QComboBox as QSelectBox,
+    QComboBox,
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QFormLayout,
+    QSizePolicy,
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QObject, Qt, QRegularExpression
+from PySide6.QtGui import QTextCursor
 from compile import build_project
 import os
-from PySide6.QtWidgets import QApplication
 import sys
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QFormLayout
+import io
 import re
-from PySide6.QtCore import Qt, QRegularExpression, QModelIndex
 
 
 class ProjectManager(QWidget):
@@ -102,7 +108,7 @@ class ProjectManager(QWidget):
                 self.projectNameInput = QLineEdit(self)
                 self.projectNameInput.setPlaceholderText("my_vr_project")
 
-                self.templateSelectionChoice = QSelectBox(self)
+                self.templateSelectionChoice = QComboBox(self)
                 self.templateSelectionChoice.addItems(
                     [
                         "Engine Override (basic)",
@@ -189,6 +195,27 @@ class ProjectManager(QWidget):
 
 
 class ProjectViewer(QWidget):
+    # Console redirection helpers
+    class _StreamEmitter(QObject):
+        text = Signal(str)
+
+    class _EmittingStream(io.TextIOBase):
+        def __init__(self, emitter: "ProjectViewer._StreamEmitter"):
+            super().__init__()
+            self._emitter = emitter
+
+        def write(self, s):
+            if not s:
+                return 0
+            try:
+                self._emitter.text.emit(str(s))
+            except Exception:
+                pass
+            return len(s)
+
+        def flush(self):
+            return
+
     def __init__(self, project_name: str, Mgr: ProjectManager, parent=None):
         super().__init__(parent)
         from PySide6.QtWidgets import (
@@ -218,7 +245,9 @@ class ProjectViewer(QWidget):
             QPixmap,
             QFontDatabase,
             QKeySequence,
+            QTextCursor,
         )
+        from PySide6.QtWidgets import QSizePolicy
         from PySide6.QtGui import QAction
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtGui import QIcon
@@ -430,6 +459,12 @@ class ProjectViewer(QWidget):
         self.saveAction = QAction("Save", self)
         self.refreshAction = QAction("Refresh", self)
         self.themeAction = QAction("Toggle Theme", self)
+        self.showConsoleAction = QAction("Show Console", self)
+        self.showConsoleAction.setCheckable(True)
+        self.showConsoleAction.setChecked(True)
+        self.showSidebarAction = QAction("Show Sidebar", self)
+        self.showSidebarAction.setCheckable(True)
+        self.showSidebarAction.setChecked(True)
         self.openExplorerAction = QAction("Open in Explorer", self)
         self.buildAction.setShortcut(QKeySequence("Ctrl+B"))
         self.saveAction.setShortcut(QKeySequence.Save)
@@ -440,17 +475,36 @@ class ProjectViewer(QWidget):
         self.toolbar.addAction(self.openExplorerAction)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.themeAction)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.showSidebarAction)
+        self.toolbar.addAction(self.showConsoleAction)
         self.layout.addWidget(self.toolbar)
 
-        header = QHBoxLayout()
-        self.saveButton = QPushButton("Save", self)
+        # Header row: keep fixed height so it doesn't expand vertically
+        headerWidget = QWidget(self)
+        headerWidget.setObjectName("headerRow")
+        headerLayout = QHBoxLayout(headerWidget)
+        headerLayout.setContentsMargins(8, 4, 8, 4)
+        headerLayout.setSpacing(8)
+
+        self.saveButton = QPushButton("Save", headerWidget)
         self.saveButton.setDisabled(True)
-        self.currentFileLabel = QLabel("No file opened", self)
+        # Keep the button compact
+        self.saveButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        self.currentFileLabel = QLabel("No file opened", headerWidget)
         self.currentFileLabel.setStyleSheet("color: #666;")
-        header.addWidget(self.saveButton)
-        header.addStretch(1)
-        header.addWidget(self.currentFileLabel)
-        self.layout.addLayout(header)
+        # Single-line label; don't let it drive vertical growth
+        self.currentFileLabel.setWordWrap(False)
+        self.currentFileLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        headerLayout.addWidget(self.saveButton)
+        headerLayout.addStretch(1)
+        headerLayout.addWidget(self.currentFileLabel)
+
+        # Ensure the whole header row stays at its size hint vertically
+        headerWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.layout.addWidget(headerWidget)
 
         # Splitter: left tree / right viewer + console
         self.mainSplitter = QSplitter(self)
@@ -564,20 +618,26 @@ class ProjectViewer(QWidget):
         self.tree.setModel(self.proxyModel)
         self.tree.setRootIsDecorated(True)
         self.tree.setSortingEnabled(True)
+        self.tree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         leftLayout.addWidget(self.tree, 1)
 
         self.mainSplitter.addWidget(leftPane)
+        # Prefer right side to stretch
+        self.mainSplitter.setStretchFactor(0, 0)
 
         # Right pane (stacked viewers: editor, image, archive, font, media, info)
         rightPane = QWidget(self)
         rightLayout = QVBoxLayout(rightPane)
         rightLayout.setContentsMargins(0, 0, 0, 0)
+        rightPane.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self.viewerStack = QStackedWidget(self)
+        self.viewerStack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         rightLayout.addWidget(self.viewerStack)
 
         # 0 - Text editor (for code/text files)
         self.editor = QPlainTextEdit(self)
+        self.editor.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.editor.setTabStopDistance(
             4 * self.editor.fontMetrics().horizontalAdvance(" ")
         )
@@ -591,6 +651,7 @@ class ProjectViewer(QWidget):
         self.imageLabel.setAlignment(Qt.AlignCenter)
         self.imageLabel.setBackgroundRole(self.imageLabel.backgroundRole())
         self.imageScroll.setWidget(self.imageLabel)
+        self.imageScroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.viewerStack.addWidget(self.imageScroll)
 
         # 2 - Archive browser (zip/tar)
@@ -663,6 +724,7 @@ class ProjectViewer(QWidget):
 
         # Right: vertical splitter for viewer and console
         self.rightSplitter = QSplitter(Qt.Vertical, self)
+        self.rightSplitter.setChildrenCollapsible(False)
         self.rightSplitter.addWidget(rightPane)
 
         # Bottom console
@@ -678,11 +740,14 @@ class ProjectViewer(QWidget):
         self.console = QPlainTextEdit(self.consolePane)
         self.console.setReadOnly(True)
         self.console.setMaximumBlockCount(5000)
+        self.console.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         _cl.addWidget(self.console, 1)
         self.rightSplitter.addWidget(self.consolePane)
 
         self.mainSplitter.addWidget(self.rightSplitter)
         self.mainSplitter.setStretchFactor(1, 1)
+        self.rightSplitter.setStretchFactor(0, 3)
+        self.rightSplitter.setStretchFactor(1, 1)
 
         # Syntax highlighter for C++
         self.highlighter = CppHighlighter(self.editor.document())
@@ -706,6 +771,8 @@ class ProjectViewer(QWidget):
         self.actionExtract.triggered.connect(self._extractArchive)
         self.fontSizeSlider.valueChanged.connect(self._updateFontSampleSize)
         self.actionPlayPause.triggered.connect(self._togglePlayPause)
+        self.showConsoleAction.toggled.connect(self._setConsoleVisible)
+        self.showSidebarAction.toggled.connect(self._setSidebarVisible)
 
         # Populate lists
         self.populateLists()
@@ -725,9 +792,26 @@ class ProjectViewer(QWidget):
             s2 = self.settings.value("splitterRight")
             if s2:
                 self.rightSplitter.restoreState(s2)
+            vConsole = self.settings.value("showConsole")
+            if vConsole is not None:
+                self.showConsoleAction.setChecked(bool(int(vConsole)))
+            vSidebar = self.settings.value("showSidebar")
+            if vSidebar is not None:
+                self.showSidebarAction.setChecked(bool(int(vSidebar)))
         except Exception:
             pass
         self._applySavedTheme()
+
+        # Redirect stdout/stderr to console
+        self._consoleEmitter = ProjectViewer._StreamEmitter()
+        self._consoleEmitter.text.connect(self._appendConsole)
+        self._prevStdout = sys.stdout
+        self._prevStderr = sys.stderr
+        try:
+            sys.stdout = ProjectViewer._EmittingStream(self._consoleEmitter)
+            sys.stderr = ProjectViewer._EmittingStream(self._consoleEmitter)
+        except Exception:
+            pass
 
     def closeEvent(self, e):
         # Ask to save if dirty
@@ -747,6 +831,20 @@ class ProjectViewer(QWidget):
         try:
             self.settings.setValue("splitterMain", self.mainSplitter.saveState())
             self.settings.setValue("splitterRight", self.rightSplitter.saveState())
+            self.settings.setValue(
+                "showConsole", int(self.showConsoleAction.isChecked())
+            )
+            self.settings.setValue(
+                "showSidebar", int(self.showSidebarAction.isChecked())
+            )
+        except Exception:
+            pass
+        # Restore stdout/stderr
+        try:
+            if hasattr(self, "_prevStdout") and self._prevStdout:
+                sys.stdout = self._prevStdout
+            if hasattr(self, "_prevStderr") and self._prevStderr:
+                sys.stderr = self._prevStderr
         except Exception:
             pass
         super().closeEvent(e)
@@ -768,7 +866,7 @@ class ProjectViewer(QWidget):
         self.fsModel.setRootPath("")
         self.populateLists()
 
-    def _onTreeDoubleClicked(self, index: QModelIndex):
+    def _onTreeDoubleClicked(self, index):
         if not index.isValid():
             return
         sidx = self.proxyModel.mapToSource(index)
@@ -936,6 +1034,37 @@ class ProjectViewer(QWidget):
         )
         mark = "*" if self._dirty else ""
         self.currentFileLabel.setText(f"{rel}{mark}")
+
+    # Console helpers and panel visibility
+    def _appendConsole(self, text: str):
+        try:
+            # Avoid excessive newlines formatting; insert as-is
+            self.console.moveCursor(QTextCursor.End)
+            self.console.insertPlainText(text)
+            self.console.ensureCursorVisible()
+        except Exception:
+            pass
+
+    def _setConsoleVisible(self, visible: bool):
+        if not hasattr(self, "rightSplitter"):
+            return
+        if visible:
+            # Restore some reasonable sizes if console was hidden
+            sizes = self.rightSplitter.sizes()
+            if sizes[1] == 0:
+                self.rightSplitter.setSizes([max(1, sizes[0]), max(1, sizes[0] // 3)])
+        else:
+            self.rightSplitter.setSizes([1, 0])
+
+    def _setSidebarVisible(self, visible: bool):
+        if not hasattr(self, "mainSplitter"):
+            return
+        if visible:
+            sizes = self.mainSplitter.sizes()
+            if sizes[0] == 0:
+                self.mainSplitter.setSizes([300, max(600, sizes[1])])
+        else:
+            self.mainSplitter.setSizes([0, max(1, sum(self.mainSplitter.sizes()))])
 
     # Theming helpers
     def _applySavedTheme(self):
