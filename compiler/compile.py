@@ -7,8 +7,9 @@ import os
 import pathlib
 import shutil
 
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
-    XR_PROJECTS_ROOT = pathlib.Path("../XrSamples/").resolve()
+    XR_PROJECTS_ROOT = (SCRIPT_DIR.parent / "XrSamples").resolve()
     TEMPLATE_ROOT = XR_PROJECTS_ROOT / "VrEngine"
     TEMPLATE_EXCLUDES = [
         "Projects/Android/.cxx/",
@@ -20,10 +21,22 @@ except Exception:
         "Could not resolve template root path. Your installation is most like corrupted, or you have screwed with the file structure."
     )
 
-PROJECTS_DIR = pathlib.Path("./projects/").resolve()
+PROJECTS_DIR = (SCRIPT_DIR / "projects").resolve()
 
 C_FILES = "Src"
 ASSETS_DIR = "assets"
+
+
+def str_format(s: str) -> str:
+    """Formats code to remove comments and unnecessary whitespace."""
+    lines = s.splitlines()
+    formatted_lines = []
+    for line in lines:
+        stripped_line = line.strip()
+        if stripped_line.startswith("//") or stripped_line == "":
+            continue
+        formatted_lines.append(line)
+    return "\n".join(formatted_lines)
 
 
 class Indicators:
@@ -194,11 +207,7 @@ class Project:
 
     def parse(self, main_content: str):
         modifications = []
-        overridden = False
-        if main_content.startswith("#OVERRIDE"):
-            print("Override detected in main source file.")
-            modifications.append({"action": "override_root", "content": main_content})
-            overridden = True
+        # Always queue includes and assets first (order independent of marker stacking)
         for src_file in self.source_files:
             modifications.append({"action": "include", "file": src_file})
         for asset_file in self.asset_files:
@@ -209,31 +218,81 @@ class Project:
                     "path": str(asset_file.relative_to(self.assets_dir)),
                 }
             )
-        if not overridden:
-            lines = main_content.splitlines()
-            for marker in Indicators.headers:
-                for i, line in enumerate(lines):
-                    if line.startswith(f"#{marker}"):
-                        print(
-                            f"Found {marker} marker in main source file, adding as modification."
-                        )
-                        mode = line.split(">", 1)[1].strip() if ">" in line else None
-                        start_index = i + 1
-                        for j in range(start_index, len(lines)):
-                            if lines[j].startswith(f"#end"):
-                                end_index = j
-                                break
-                        modifications.append(
-                            {
-                                "action": "modification_marker",
-                                "marker": marker,
-                                "mode": mode,
-                                "content": "\n".join(lines[start_index:end_index]),
-                            }
-                        )
-        print(
-            f"Parsed project {self.name} with {len(modifications)} modifications.\n{modifications}"
-        )
+
+        # Sequential scan to support multiple overrides and markers stacked by appearance order
+        lines = main_content.splitlines()
+        i = 0
+        known_markers = list(Indicators.headers.keys())
+        while i < len(lines):
+            line = lines[i]
+            # Full-file override (legacy): if file starts with #OVERRIDE and no #end, treat whole file as override once
+            if (
+                i == 0
+                and line.startswith("#OVERRIDE")
+                and not any(l.startswith("#end") for l in lines[1:])
+            ):
+                print("Override detected (full-file).")
+                modifications.append(
+                    {"action": "override_root", "content": main_content}
+                )
+                break
+
+            if line.startswith("#OVERRIDE"):
+                # Block override up to #end
+                start_index = i + 1
+                end_index = None
+                for j in range(start_index, len(lines)):
+                    if lines[j].startswith("#end"):
+                        end_index = j
+                        break
+                if end_index is None:
+                    # No terminator, use rest of file
+                    end_index = len(lines)
+                content = "\n".join(lines[start_index:end_index])
+                print("Override detected (block), stacking.")
+                modifications.append({"action": "override_root", "content": content})
+                i = end_index + 1
+                continue
+
+            # Check for any known marker at this line
+            matched_marker = None
+            matched_mode = None
+            if line.startswith("#"):
+                for marker in known_markers:
+                    prefix = f"#{marker}"
+                    if line.startswith(prefix):
+                        matched_marker = marker
+                        if ">" in line:
+                            matched_mode = line.split(">", 1)[1].strip() or None
+                        break
+
+            if matched_marker is not None:
+                start_index = i + 1
+                end_index = None
+                for j in range(start_index, len(lines)):
+                    if lines[j].startswith("#end"):
+                        end_index = j
+                        break
+                if end_index is None:
+                    end_index = len(lines)
+                content = "\n".join(lines[start_index:end_index])
+                print(
+                    f"Found {matched_marker} marker, stacking modification (mode={matched_mode or 'a'})."
+                )
+                modifications.append(
+                    {
+                        "action": "modification_marker",
+                        "marker": matched_marker,
+                        "mode": matched_mode,
+                        "content": content,
+                    }
+                )
+                i = end_index + 1
+                continue
+
+            i += 1
+
+        print(f"Parsed project {self.name} with {len(modifications)} operations.")
         return modifications
 
 
@@ -255,7 +314,7 @@ class Compiler:
 
         for modification in self.compiled_project:
             if modification["action"] == "override_root":
-                print("Applying root override.")
+                print("Applying root override (stacked).")
                 root_content = modification["content"]
             elif modification["action"] == "include":
                 print(f"Including source file {modification['file']}.")
@@ -267,23 +326,23 @@ class Compiler:
                 print(
                     f"Adding asset file {modification['file']} at {modification['path']}."
                 )
-                shutil.copy(
-                    modification["file"],
-                    self.project_dir / ASSETS_DIR / modification["file"].name,
-                )
+                asset_dest = self.project_dir / ASSETS_DIR / modification["path"]
+                asset_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(modification["file"], asset_dest)
             elif modification["action"] == "modification_marker":
                 marker = modification["marker"]
                 entry_indicator = f"// {Indicators.headers[marker]['entry']}"
                 exit_indicator = f"// {Indicators.headers[marker]['exit']}"
                 print(
-                    f"Applying modification for marker {marker}, mode {modification['mode']}."
+                    f"Applying modification for marker {marker}, mode {modification.get('mode') or 'a'}."
                 )
                 if entry_indicator in root_content and exit_indicator in root_content:
                     start_index = root_content.index(entry_indicator) + len(
                         entry_indicator
                     )
                     end_index = root_content.index(exit_indicator)
-                    if modification["mode"] == "w":
+                    mode = (modification.get("mode") or "a").lower()
+                    if mode == "w":
                         root_content = (
                             root_content[:start_index]
                             + "\n"
@@ -291,7 +350,7 @@ class Compiler:
                             + "\n"
                             + root_content[end_index:]
                         )
-                    elif modification["mode"] == "a":
+                    elif mode == "a":
                         root_content = (
                             root_content[:end_index]
                             + "\n"
@@ -299,7 +358,7 @@ class Compiler:
                             + "\n"
                             + root_content[end_index:]
                         )
-                    elif modification["mode"] == "p":
+                    elif mode == "p":
                         root_content = (
                             root_content[:start_index]
                             + "\n"
@@ -311,10 +370,89 @@ class Compiler:
             self.project_dir / C_FILES / "main.cpp",
             "w",
         ) as f:
-            f.write(root_content)
+            f.write(str_format(root_content))
+
+        with open(
+            self.project_dir / "CMakeLists.txt",
+            "r",
+        ) as f:
+            cmake_content = f.read()
+        cmake_content = cmake_content.replace(
+            "project(VrEngine)",
+            f"project({self.project.name.replace('-', '_').replace(' ', '_')})",
+        )
+        with open(
+            self.project_dir / "CMakeLists.txt",
+            "w",
+        ) as f:
+            f.write(cmake_content)
+
+        with open(
+            self.project_dir / "Projects/Android/build.gradle",
+            "r",
+        ) as f:
+            gradle_content = f.read()
+        gradle_content = gradle_content.replace(
+            'targets "VrEngine"',
+            f"targets \"{self.project.name.replace('-', '_').replace(' ', '_')}\"",
+        )
+        with open(
+            self.project_dir / "Projects/Android/build.gradle",
+            "w",
+        ) as f:
+            f.write(gradle_content)
+
+        with open(
+            self.project_dir / "Projects/Android/AndroidManifest.xml",
+            "r",
+        ) as f:
+            manifest_content = f.read()
+        manifest_content = manifest_content.replace(
+            'android:value="VrEngine"',
+            f'android:value="{self.project.name.replace("-", "_").replace(" ", "_")}"',
+        )
+        with open(
+            self.project_dir / "Projects/Android/AndroidManifest.xml",
+            "w",
+        ) as f:
+            f.write(manifest_content)
 
 
 if __name__ == "__main__":
-    sample_project = Project("test")
+    sample_project = Project(input("Enter the name of the project to compile: "))
     compiler = Compiler(sample_project)
     compiler.compile()
+
+    open_in_android_studio = input(
+        "Do you want to open the generated project in Android Studio? (y/n): "
+    )
+    if open_in_android_studio.lower() == "y":
+        import subprocess
+        import sys
+
+        android_studio_path = ""
+        if sys.platform == "win32":
+            android_studio_path = (
+                "C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe"
+            )
+        elif sys.platform == "darwin":
+            android_studio_path = (
+                "/Applications/Android Studio.app/Contents/MacOS/studio"
+            )
+        elif sys.platform == "linux":
+            android_studio_path = "/usr/local/android-studio/bin/studio.sh"
+
+        if not os.path.exists(android_studio_path):
+            print(
+                f"Android Studio executable not found at {android_studio_path}. Please open the project manually."
+            )
+        else:
+            subprocess.Popen(
+                [
+                    android_studio_path,
+                    str(compiler.project_dir) + "/Projects/Android/build.gradle",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            print("Android Studio launched with the generated project.")

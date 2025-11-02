@@ -33,4 +33,5 @@
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
     ],
     "C_Cpp.intelliSenseEngine": "default",
+    "java.configuration.updateBuildConfiguration": "disabled",
 }
