@@ -1,4 +1,3 @@
-import shutil
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,14 +13,49 @@ from PySide6.QtWidgets import (
     QLabel,
     QFormLayout,
     QSizePolicy,
+    QSplitter,
+    QPlainTextEdit,
+    QStackedWidget,
+    QScrollArea,
+    QTreeWidget,
+    QToolBar,
+    QSlider,
+    QTreeView,
+    QFileSystemModel,
+    QTreeWidgetItem,
+    QFileDialog,
 )
-from PySide6.QtCore import Signal, QObject, Qt, QRegularExpression
-from PySide6.QtGui import QTextCursor
+from PySide6.QtGui import (
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QColor,
+    QFont,
+    QKeySequence,
+    QTextCursor,
+    QAction,
+    QImageReader,
+    QPixmap,
+    QFontDatabase,
+)
+from PySide6.QtCore import (
+    QSortFilterProxyModel,
+    QSettings,
+    QDir,
+    Signal,
+    QObject,
+    Qt,
+    QRegularExpression,
+    QUrl,
+)
+from PySide6.QtMultimedia import QMediaPlayer
 from compile import build_project
 import os
 import sys
 import io
 import re
+import struct
+import shutil
+import zipfile, tarfile
 
 
 class ProjectManager(QWidget):
@@ -218,47 +252,6 @@ class ProjectViewer(QWidget):
 
     def __init__(self, project_name: str, Mgr: ProjectManager, parent=None):
         super().__init__(parent)
-        from PySide6.QtWidgets import (
-            QSplitter,
-            QHBoxLayout,
-            QLabel,
-            QPlainTextEdit,
-            QListWidgetItem,
-            QStackedWidget,
-            QScrollArea,
-            QTreeWidget,
-            QTreeWidgetItem,
-            QToolBar,
-            QFileDialog,
-            QSlider,
-            QTreeView,
-            QLineEdit as QLE,
-            QComboBox,
-            QFileSystemModel,
-        )
-        from PySide6.QtGui import (
-            QSyntaxHighlighter,
-            QTextCharFormat,
-            QColor,
-            QFont,
-            QImage,
-            QPixmap,
-            QFontDatabase,
-            QKeySequence,
-            QTextCursor,
-        )
-        from PySide6.QtWidgets import QSizePolicy
-        from PySide6.QtGui import QAction
-        from PySide6.QtGui import QGuiApplication
-        from PySide6.QtGui import QIcon
-        from PySide6.QtCore import (
-            QByteArray,
-            QSortFilterProxyModel,
-            QSettings,
-            QModelIndex,
-            QDir,
-        )
-        from PySide6.QtGui import QImageReader
 
         class CppHighlighter(QSyntaxHighlighter):
             def __init__(self, parent):
@@ -515,7 +508,7 @@ class ProjectViewer(QWidget):
         leftLayout = QVBoxLayout(leftPane)
         leftLayout.setContentsMargins(4, 4, 4, 4)
         filterRow = QHBoxLayout()
-        self.searchBox = QLE(self)
+        self.searchBox = QLineEdit(self)
         self.searchBox.setPlaceholderText("Filter files…")
         self.kindFilter = QComboBox(self)
         self.kindFilter.addItems(["All", "Code", "Assets"])
@@ -656,9 +649,8 @@ class ProjectViewer(QWidget):
 
         # 2 - Archive browser (zip/tar)
         self.archivePane = QWidget(self)
-        from PySide6.QtWidgets import QVBoxLayout as _QVBox
 
-        _al = _QVBox(self.archivePane)
+        _al = QVBoxLayout(self.archivePane)
         _al.setContentsMargins(0, 0, 0, 0)
         self.archiveToolbar = QToolBar(self.archivePane)
         self.actionExtract = QAction("Extract…", self.archiveToolbar)
@@ -671,7 +663,7 @@ class ProjectViewer(QWidget):
 
         # 3 - Font preview
         self.fontPane = QWidget(self)
-        _fl = _QVBox(self.fontPane)
+        _fl = QVBoxLayout(self.fontPane)
         _fl.setContentsMargins(8, 8, 8, 8)
         self.fontSample = QLabel(
             "The quick brown fox jumps over the lazy dog 0123456789", self.fontPane
@@ -688,7 +680,7 @@ class ProjectViewer(QWidget):
 
         # 4 - Media player (audio/video)
         self.mediaPane = QWidget(self)
-        _ml = _QVBox(self.mediaPane)
+        _ml = QVBoxLayout(self.mediaPane)
         _ml.setContentsMargins(0, 0, 0, 0)
         self.mediaToolbar = QToolBar(self.mediaPane)
         self.actionPlayPause = QAction("Play", self.mediaToolbar)
@@ -727,11 +719,8 @@ class ProjectViewer(QWidget):
         self.rightSplitter.setChildrenCollapsible(False)
         self.rightSplitter.addWidget(rightPane)
 
-        # Bottom console
-        from PySide6.QtWidgets import QVBoxLayout as _QVBox
-
         self.consolePane = QWidget(self)
-        _cl = _QVBox(self.consolePane)
+        _cl = QVBoxLayout(self.consolePane)
         _cl.setContentsMargins(0, 0, 0, 0)
         self.consoleToolbar = QToolBar(self.consolePane)
         self.actionClearConsole = QAction("Clear", self.consoleToolbar)
@@ -895,8 +884,6 @@ class ProjectViewer(QWidget):
 
     # -------- Detection and routing --------
     def detect_file_type(self, path):
-        import struct
-        from PySide6.QtGui import QImageReader
 
         result = {"type": "unknown", "subtype": None}
         try:
@@ -1182,7 +1169,6 @@ class ProjectViewer(QWidget):
             raise
 
     def _showImage(self, path):
-        from PySide6.QtGui import QImageReader, QPixmap
 
         reader = QImageReader(path)
         reader.setAutoTransform(True)
@@ -1196,8 +1182,6 @@ class ProjectViewer(QWidget):
         self._setView(1)
 
     def _showArchive(self, path, subtype):
-        import zipfile, tarfile, os
-        from PySide6.QtWidgets import QTreeWidgetItem
 
         self.archiveTree.clear()
         items = []
@@ -1231,12 +1215,10 @@ class ProjectViewer(QWidget):
     def _extractArchive(self):
         if self.viewerStack.currentIndex() != 2 or not self.currentFilePath:
             return
-        from PySide6.QtWidgets import QFileDialog
 
         dest = QFileDialog.getExistingDirectory(self, "Extract to…", self.project_root)
         if not dest:
             return
-        import zipfile, tarfile
 
         try:
             if zipfile.is_zipfile(self.currentFilePath):
@@ -1253,7 +1235,6 @@ class ProjectViewer(QWidget):
             QMessageBox.critical(self, "Extract", f"Extraction failed:\n{e}")
 
     def _showFont(self, path):
-        from PySide6.QtGui import QFontDatabase, QFont
 
         db = QFontDatabase()
         fid = QFontDatabase.addApplicationFont(path)
@@ -1288,7 +1269,6 @@ class ProjectViewer(QWidget):
                 self._player.stop()
         except Exception:
             pass
-        from PySide6.QtCore import QUrl
 
         self._player = self._QMediaPlayer(self)
         self._audioOut = self._QAudioOutput(self)
@@ -1302,7 +1282,6 @@ class ProjectViewer(QWidget):
         if self.viewerStack.currentIndex() != 4 or not self._player:
             return
         st = self._player.playbackState()
-        from PySide6.QtMultimedia import QMediaPlayer
 
         if st == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
