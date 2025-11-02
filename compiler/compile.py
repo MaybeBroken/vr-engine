@@ -418,41 +418,52 @@ class Compiler:
             f.write(manifest_content)
 
 
+def open_android_studio(project_path: pathlib.Path):
+    import subprocess
+    import sys
+
+    android_studio_path = ""
+    if sys.platform == "win32":
+        android_studio_path = (
+            "C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe"
+        )
+    elif sys.platform == "darwin":
+        android_studio_path = "/Applications/Android Studio.app/Contents/MacOS/studio"
+    elif sys.platform == "linux":
+        android_studio_path = "/usr/local/android-studio/bin/studio.sh"
+
+    if not os.path.exists(android_studio_path):
+        print(
+            f"Android Studio executable not found at {android_studio_path}. Please open the project manually."
+        )
+    else:
+        subprocess.Popen(
+            [
+                android_studio_path,
+                str(project_path) + "/Projects/Android/build.gradle",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print("Android Studio launched with the generated project.")
+
+
 if __name__ == "__main__":
-    sample_project = Project(input("Enter the name of the project to compile: "))
-    compiler = Compiler(sample_project)
+    project = Project(input("Enter the name of the project to compile: "))
+    compiler = Compiler(project)
     compiler.compile()
 
     open_in_android_studio = input(
         "Do you want to open the generated project in Android Studio? (y/n): "
     )
     if open_in_android_studio.lower() == "y":
-        import subprocess
-        import sys
+        open_android_studio(compiler.project_dir)
 
-        android_studio_path = ""
-        if sys.platform == "win32":
-            android_studio_path = (
-                "C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe"
-            )
-        elif sys.platform == "darwin":
-            android_studio_path = (
-                "/Applications/Android Studio.app/Contents/MacOS/studio"
-            )
-        elif sys.platform == "linux":
-            android_studio_path = "/usr/local/android-studio/bin/studio.sh"
 
-        if not os.path.exists(android_studio_path):
-            print(
-                f"Android Studio executable not found at {android_studio_path}. Please open the project manually."
-            )
-        else:
-            subprocess.Popen(
-                [
-                    android_studio_path,
-                    str(compiler.project_dir) + "/Projects/Android/build.gradle",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            print("Android Studio launched with the generated project.")
+def main(project_name: str, open_in_android_studio: bool = False):
+    project = Project(project_name)
+    compiler = Compiler(project)
+    compiler.compile()
+
+    if open_in_android_studio:
+        open_android_studio(compiler.project_dir)
