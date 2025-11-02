@@ -69,6 +69,22 @@ class Indicators:
     RENDER_MOD_EXIT = "RENDER_MOD_EXIT"
     RENDER_EXIT = "RENDER_EXIT"
 
+    headers = {
+        "includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
+        "var_space": {"entry": VAR_SPACE_ENTRY, "exit": VAR_SPACE_EXIT},
+        "class": {"entry": CLASS_ENTRY, "exit": CLASS_EXIT},
+        "entry_point_init": {"entry": ENTRY_POINT_INIT, "exit": ENTRY_POINT_EXIT},
+        "public": {"entry": PUBLIC_ENTRY, "exit": PUBLIC_EXIT},
+        "class_init": {"entry": CLASS_INIT_ENTRY, "exit": CLASS_INIT_EXIT},
+        "app_extensions": {"entry": APP_EXTENSIONS_ENTRY, "exit": APP_EXTENSIONS_EXIT},
+        "app_init": {"entry": APP_INIT_ENTRY, "exit": APP_INIT_EXIT},
+        "app_shutdown": {"entry": APP_SHUTDOWN_ENTRY, "exit": APP_SHUTDOWN_EXIT},
+        "session_init": {"entry": SESSION_INIT_ENTRY, "exit": SESSION_INIT_EXIT},
+        "session_end": {"entry": SESSION_END_ENTRY, "exit": SESSION_END_EXIT},
+        "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
+        "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
+    }
+
     def all_indicators(return_type: type = None) -> list[str] | str | dict[str, str]:
         if return_type == str:
             return "|".join(
@@ -97,6 +113,8 @@ class Indicators:
 def parse_template_project(context: "Compiler"):
     NEW_PROJECT_DIR = XR_PROJECTS_ROOT / context.project.name
     template_files = list(TEMPLATE_ROOT.rglob("*"))
+    if NEW_PROJECT_DIR.exists():
+        shutil.rmtree(NEW_PROJECT_DIR)
     for file_path_obj in template_files:
         if any(
             (
@@ -144,20 +162,23 @@ class Project:
         print(
             f"Building project {self.name} located at {self.path}, scanning source files in {self.src_dir} and assets in {self.assets_dir}"
         )
-        self.build_project()
 
     def resolve_src_files(self) -> list[pathlib.Path]:
-        csource_files = glob.glob(str(self.src_dir) + "/**/*.csource", recursive=True)
+        csource_files = glob.glob(str(self.src_dir) + "/**/*", recursive=True)
         return [pathlib.Path(f) for f in csource_files]
 
     def resolve_asset_files(self) -> list[pathlib.Path]:
         asset_files = glob.glob(str(self.assets_dir) + "/**/*", recursive=True)
-        return [pathlib.Path(f) for f in asset_files if os.path.isfile(f)]
+        return [
+            pathlib.Path(f)
+            for f in asset_files
+            if os.path.isfile(f) and not ("main.cpp" in f)
+        ]
 
     def build_project(self):
         self.source_files = self.resolve_src_files()
         self.asset_files = self.resolve_asset_files()
-        main_file = self.src_dir / (self.name + ".csource")
+        main_file = self.src_dir / "main.cpp"
         if main_file not in self.source_files:
             raise FileNotFoundError(
                 f"Main source file {main_file} not found in project {self.name}"
@@ -166,20 +187,131 @@ class Project:
         print(
             f"Project {self.name} is valid. Loading {len(self.source_files)} source files and {len(self.asset_files)} asset files."
         )
+        with open(main_file, "r", encoding="utf-8-sig", errors="ignore") as f:
+            main_content = f.read()
+
+        return self.parse(main_content)
+
+    def parse(self, main_content: str):
+        modifications = []
+        overridden = False
+        if main_content.startswith("#OVERRIDE"):
+            print("Override detected in main source file.")
+            modifications.append({"action": "override_root", "content": main_content})
+            overridden = True
+        for src_file in self.source_files:
+            modifications.append({"action": "include", "file": src_file})
+        for asset_file in self.asset_files:
+            modifications.append(
+                {
+                    "action": "asset",
+                    "file": asset_file,
+                    "path": str(asset_file.relative_to(self.assets_dir)),
+                }
+            )
+        if not overridden:
+            lines = main_content.splitlines()
+            for marker in Indicators.headers:
+                for i, line in enumerate(lines):
+                    if line.startswith(f"#{marker}"):
+                        print(
+                            f"Found {marker} marker in main source file, adding as modification."
+                        )
+                        mode = line.split(">", 1)[1].strip() if ">" in line else None
+                        start_index = i + 1
+                        for j in range(start_index, len(lines)):
+                            if lines[j].startswith(f"#end"):
+                                end_index = j
+                                break
+                        modifications.append(
+                            {
+                                "action": "modification_marker",
+                                "marker": marker,
+                                "mode": mode,
+                                "content": "\n".join(lines[start_index:end_index]),
+                            }
+                        )
+        print(
+            f"Parsed project {self.name} with {len(modifications)} modifications.\n{modifications}"
+        )
+        return modifications
 
 
 class Compiler:
     def __init__(self, project: Project):
         self.project: Project = project
         self.parser = Parser()
+        self.root_file = TEMPLATE_ROOT / C_FILES / "main.cpp"
 
     def compile(self):
-        parse_template_project(self)
+        self.project_dir = parse_template_project(self)
         self.assemble_source()
         pass
 
     def assemble_source(self):
-        self.project
+        self.compiled_project = self.project.build_project()
+        with open(self.root_file, "r", encoding="utf-8-sig", errors="ignore") as f:
+            root_content = f.read()
+
+        for modification in self.compiled_project:
+            if modification["action"] == "override_root":
+                print("Applying root override.")
+                root_content = modification["content"]
+            elif modification["action"] == "include":
+                print(f"Including source file {modification['file']}.")
+                shutil.copy(
+                    modification["file"],
+                    self.project_dir / C_FILES / modification["file"].name,
+                )
+            elif modification["action"] == "asset":
+                print(
+                    f"Adding asset file {modification['file']} at {modification['path']}."
+                )
+                shutil.copy(
+                    modification["file"],
+                    self.project_dir / ASSETS_DIR / modification["file"].name,
+                )
+            elif modification["action"] == "modification_marker":
+                marker = modification["marker"]
+                entry_indicator = f"// {Indicators.headers[marker]['entry']}"
+                exit_indicator = f"// {Indicators.headers[marker]['exit']}"
+                print(
+                    f"Applying modification for marker {marker}, mode {modification['mode']}."
+                )
+                if entry_indicator in root_content and exit_indicator in root_content:
+                    start_index = root_content.index(entry_indicator) + len(
+                        entry_indicator
+                    )
+                    end_index = root_content.index(exit_indicator)
+                    if modification["mode"] == "w":
+                        root_content = (
+                            root_content[:start_index]
+                            + "\n"
+                            + modification["content"]
+                            + "\n"
+                            + root_content[end_index:]
+                        )
+                    elif modification["mode"] == "a":
+                        root_content = (
+                            root_content[:end_index]
+                            + "\n"
+                            + modification["content"]
+                            + "\n"
+                            + root_content[end_index:]
+                        )
+                    elif modification["mode"] == "p":
+                        root_content = (
+                            root_content[:start_index]
+                            + "\n"
+                            + modification["content"]
+                            + "\n"
+                            + root_content[start_index:]
+                        )
+        with open(
+            self.project_dir / C_FILES / "main.cpp",
+            "w",
+        ) as f:
+            f.write(root_content)
 
 
 if __name__ == "__main__":

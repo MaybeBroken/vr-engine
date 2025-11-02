@@ -18,7 +18,7 @@
 //
 
 // VAR_SPACE_EXIT
-// CLASS_ENTRY>@delimiter=VrEngine
+// CLASS_ENTRY
 class VrEngine : public OVRFW::XrApp
 {
 public:
