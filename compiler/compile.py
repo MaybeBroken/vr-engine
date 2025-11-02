@@ -3,6 +3,7 @@ This is a program madfe to compile VR projects into C++ and generate the necessa
 """
 
 import glob
+import os
 import pathlib
 from shutil import copy
 
@@ -65,7 +66,7 @@ class Indicators:
     RENDER_MOD_EXIT = "RENDER_MOD_EXIT"
     RENDER_EXIT = "RENDER_EXIT"
 
-    def all_indicators(return_type: type) -> list[str] | str | dict[str, str]:
+    def all_indicators(return_type: type = None) -> list[str] | str | dict[str, str]:
         if return_type == str:
             return "|".join(
                 [
@@ -86,21 +87,27 @@ class Indicators:
                 for name, value in Indicators.__dict__.items()
                 if not name.startswith("__") and not callable(value)
             }
+        elif return_type is None:
+            return Indicators
 
 
 def parse_template_project(context: "Compiler"):
     NEW_PROJECT_DIR = XR_PROJECTS_ROOT / context.project.name
-    template_files = glob.glob(str(TEMPLATE_ROOT), recursive=True)
+    template_files = glob.glob(str(TEMPLATE_ROOT) + "/**/*", recursive=True)
     for file_path in template_files:
         file_path_obj = pathlib.Path(file_path)
         if any(
             str(file_path_obj).startswith(str(exclude)) for exclude in TEMPLATE_EXCLUDES
         ):
             continue
+        if os.path.isdir(file_path_obj):
+            continue
         relative_path = file_path_obj.relative_to(TEMPLATE_ROOT)
         new_file_path = NEW_PROJECT_DIR / relative_path
         new_file_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Copying {file_path_obj} to {new_file_path}")
         copy(file_path_obj, new_file_path)
+    print(f"Project {context.project.name} created at {NEW_PROJECT_DIR}")
 
 
 class Parser:
