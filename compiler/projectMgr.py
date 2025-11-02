@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication
 import sys
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QFormLayout
 import re
-from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtCore import Qt, QRegularExpression, QModelIndex
 
 
 class ProjectManager(QWidget):
@@ -204,6 +204,10 @@ class ProjectViewer(QWidget):
             QToolBar,
             QFileDialog,
             QSlider,
+            QTreeView,
+            QLineEdit as QLE,
+            QComboBox,
+            QFileSystemModel,
         )
         from PySide6.QtGui import (
             QSyntaxHighlighter,
@@ -213,11 +217,18 @@ class ProjectViewer(QWidget):
             QImage,
             QPixmap,
             QFontDatabase,
+            QKeySequence,
         )
         from PySide6.QtGui import QAction
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtGui import QIcon
-        from PySide6.QtCore import QByteArray
+        from PySide6.QtCore import (
+            QByteArray,
+            QSortFilterProxyModel,
+            QSettings,
+            QModelIndex,
+            QDir,
+        )
         from PySide6.QtGui import QImageReader
 
         class CppHighlighter(QSyntaxHighlighter):
@@ -410,37 +421,152 @@ class ProjectViewer(QWidget):
         self.setWindowTitle(f"Project: {self.project_name}")
         self.layout = QVBoxLayout(self)
 
-        # Top bar with actions
-        topBar = QHBoxLayout()
-        self.buildButton = QPushButton("Build Project", self)
+        # Settings
+        self.settings = QSettings("MaybeBroken", "vr-engine-compiler")
+
+        # Toolbar and header
+        self.toolbar = QToolBar("Main", self)
+        self.buildAction = QAction("Build", self)
+        self.saveAction = QAction("Save", self)
+        self.refreshAction = QAction("Refresh", self)
+        self.themeAction = QAction("Toggle Theme", self)
+        self.openExplorerAction = QAction("Open in Explorer", self)
+        self.buildAction.setShortcut(QKeySequence("Ctrl+B"))
+        self.saveAction.setShortcut(QKeySequence.Save)
+        self.toolbar.addAction(self.buildAction)
+        self.toolbar.addAction(self.saveAction)
+        self.toolbar.addAction(self.refreshAction)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.openExplorerAction)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.themeAction)
+        self.layout.addWidget(self.toolbar)
+
+        header = QHBoxLayout()
         self.saveButton = QPushButton("Save", self)
         self.saveButton.setDisabled(True)
         self.currentFileLabel = QLabel("No file opened", self)
         self.currentFileLabel.setStyleSheet("color: #666;")
-        topBar.addWidget(self.buildButton)
-        topBar.addWidget(self.saveButton)
-        topBar.addStretch(1)
-        topBar.addWidget(self.currentFileLabel)
-        self.layout.addLayout(topBar)
+        header.addWidget(self.saveButton)
+        header.addStretch(1)
+        header.addWidget(self.currentFileLabel)
+        self.layout.addLayout(header)
 
-        # Splitter: left file lists, right editor
-        splitter = QSplitter(self)
-        self.layout.addWidget(splitter)
+        # Splitter: left tree / right viewer + console
+        self.mainSplitter = QSplitter(self)
+        self.layout.addWidget(self.mainSplitter)
 
-        # Left pane
+        # Left pane: filter + file tree
         leftPane = QWidget(self)
         leftLayout = QVBoxLayout(leftPane)
-        leftLayout.setContentsMargins(0, 0, 0, 0)
+        leftLayout.setContentsMargins(4, 4, 4, 4)
+        filterRow = QHBoxLayout()
+        self.searchBox = QLE(self)
+        self.searchBox.setPlaceholderText("Filter files…")
+        self.kindFilter = QComboBox(self)
+        self.kindFilter.addItems(["All", "Code", "Assets"])
+        filterRow.addWidget(self.searchBox)
+        filterRow.addWidget(self.kindFilter)
+        leftLayout.addLayout(filterRow)
 
-        leftLayout.addWidget(QLabel("Source files (/Src):", self))
-        self.srcList = QListWidget(self)
-        leftLayout.addWidget(self.srcList, 1)
+        self.fsModel = QFileSystemModel(self)
+        self.fsModel.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot)
+        self.fsModel.setRootPath("")
 
-        leftLayout.addWidget(QLabel("Assets (/assets):", self))
-        self.assetList = QListWidget(self)
-        leftLayout.addWidget(self.assetList, 1)
+        class FileFilterProxy(QSortFilterProxyModel):
+            def __init__(self, parent, root_getter):
+                super().__init__(parent)
+                self._text = ""
+                self._kind = "All"
+                self._root_getter = root_getter
+                self.setRecursiveFilteringEnabled(True)
 
-        splitter.addWidget(leftPane)
+            def setText(self, t):
+                self._text = (t or "").lower()
+                self.invalidateFilter()
+
+            def setKind(self, k):
+                self._kind = k
+                self.invalidateFilter()
+
+            def filterAcceptsRow(self, source_row, source_parent):
+                src = self.sourceModel()
+                idx = src.index(source_row, 0, source_parent)
+                if not idx.isValid():
+                    return False
+                path = src.filePath(idx)
+                name = os.path.basename(path).lower()
+                if self._text and self._text not in name:
+                    # allow directories through if any child matches
+                    if src.isDir(idx):
+                        for r in range(src.rowCount(idx)):
+                            if self.filterAcceptsRow(r, idx):
+                                return True
+                    return False
+                if self._kind == "Code":
+                    code_ext = {
+                        ".c",
+                        ".cc",
+                        ".cpp",
+                        ".cxx",
+                        ".h",
+                        ".hh",
+                        ".hpp",
+                        ".hxx",
+                        ".ipp",
+                        ".inl",
+                        ".tpp",
+                    }
+                    return src.isDir(idx) or os.path.splitext(name)[1] in code_ext
+                if self._kind == "Assets":
+                    root = self._root_getter()
+                    try:
+                        rel = os.path.relpath(path, root)
+                    except Exception:
+                        rel = path
+                    if rel.split(os.sep)[0] == "assets":
+                        return True
+                    asset_ext = {
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".gif",
+                        ".bmp",
+                        ".tga",
+                        ".ktx",
+                        ".ktx2",
+                        ".mp3",
+                        ".wav",
+                        ".ogg",
+                        ".flac",
+                        ".mp4",
+                        ".webm",
+                        ".mkv",
+                        ".zip",
+                        ".tar",
+                        ".gz",
+                        ".ttf",
+                        ".otf",
+                        ".woff",
+                        ".woff2",
+                        ".obj",
+                        ".stl",
+                        ".fbx",
+                        ".gltf",
+                        ".glb",
+                    }
+                    return os.path.splitext(name)[1] in asset_ext or src.isDir(idx)
+                return True
+
+        self.proxyModel = FileFilterProxy(self, lambda: self.project_root)
+        self.proxyModel.setSourceModel(self.fsModel)
+        self.tree = QTreeView(self)
+        self.tree.setModel(self.proxyModel)
+        self.tree.setRootIsDecorated(True)
+        self.tree.setSortingEnabled(True)
+        leftLayout.addWidget(self.tree, 1)
+
+        self.mainSplitter.addWidget(leftPane)
 
         # Right pane (stacked viewers: editor, image, archive, font, media, info)
         rightPane = QWidget(self)
@@ -535,8 +661,28 @@ class ProjectViewer(QWidget):
         self.infoView.setReadOnly(True)
         self.viewerStack.addWidget(self.infoView)
 
-        splitter.addWidget(rightPane)
-        splitter.setStretchFactor(1, 1)
+        # Right: vertical splitter for viewer and console
+        self.rightSplitter = QSplitter(Qt.Vertical, self)
+        self.rightSplitter.addWidget(rightPane)
+
+        # Bottom console
+        from PySide6.QtWidgets import QVBoxLayout as _QVBox
+
+        self.consolePane = QWidget(self)
+        _cl = _QVBox(self.consolePane)
+        _cl.setContentsMargins(0, 0, 0, 0)
+        self.consoleToolbar = QToolBar(self.consolePane)
+        self.actionClearConsole = QAction("Clear", self.consoleToolbar)
+        self.consoleToolbar.addAction(self.actionClearConsole)
+        _cl.addWidget(self.consoleToolbar)
+        self.console = QPlainTextEdit(self.consolePane)
+        self.console.setReadOnly(True)
+        self.console.setMaximumBlockCount(5000)
+        _cl.addWidget(self.console, 1)
+        self.rightSplitter.addWidget(self.consolePane)
+
+        self.mainSplitter.addWidget(self.rightSplitter)
+        self.mainSplitter.setStretchFactor(1, 1)
 
         # Syntax highlighter for C++
         self.highlighter = CppHighlighter(self.editor.document())
@@ -547,10 +693,16 @@ class ProjectViewer(QWidget):
         self._dirty = False
 
         # Signals
-        self.buildButton.clicked.connect(self.buildProject)
+        self.buildAction.triggered.connect(self.buildProject)
+        self.saveAction.triggered.connect(self.saveCurrentFile)
         self.saveButton.clicked.connect(self.saveCurrentFile)
-        self.srcList.itemDoubleClicked.connect(self._openFromList)
-        self.assetList.itemDoubleClicked.connect(self._openFromList)
+        self.refreshAction.triggered.connect(self._refreshTree)
+        self.actionClearConsole.triggered.connect(self.console.clear)
+        self.themeAction.triggered.connect(self._toggleTheme)
+        self.openExplorerAction.triggered.connect(self._openInExplorer)
+        self.tree.doubleClicked.connect(self._onTreeDoubleClicked)
+        self.searchBox.textChanged.connect(self.proxyModel.setText)
+        self.kindFilter.currentTextChanged.connect(self.proxyModel.setKind)
         self.actionExtract.triggered.connect(self._extractArchive)
         self.fontSizeSlider.valueChanged.connect(self._updateFontSampleSize)
         self.actionPlayPause.triggered.connect(self._togglePlayPause)
@@ -561,6 +713,21 @@ class ProjectViewer(QWidget):
         # Media state
         self._player = None
         self._audioOut = None
+
+        # Drag & drop
+        self.setAcceptDrops(True)
+
+        # Restore UI state and theme
+        try:
+            s = self.settings.value("splitterMain")
+            if s:
+                self.mainSplitter.restoreState(s)
+            s2 = self.settings.value("splitterRight")
+            if s2:
+                self.rightSplitter.restoreState(s2)
+        except Exception:
+            pass
+        self._applySavedTheme()
 
     def closeEvent(self, e):
         # Ask to save if dirty
@@ -577,47 +744,39 @@ class ProjectViewer(QWidget):
             if res == QMessageBox.Yes:
                 self.saveCurrentFile()
         self.Mgr.show()
+        try:
+            self.settings.setValue("splitterMain", self.mainSplitter.saveState())
+            self.settings.setValue("splitterRight", self.rightSplitter.saveState())
+        except Exception:
+            pass
         super().closeEvent(e)
 
     def populateLists(self):
-        self.srcList.clear()
-        self.assetList.clear()
+        root_idx = self.fsModel.index(self.project_root)
+        proxy_root = self.proxyModel.mapFromSource(root_idx)
+        self.tree.setRootIndex(proxy_root)
+        # expand common dirs
+        for name in ("Src", "assets"):
+            p = os.path.join(self.project_root, name)
+            if os.path.isdir(p):
+                idx = self.fsModel.index(p)
+                pidx = self.proxyModel.mapFromSource(idx)
+                if pidx.isValid():
+                    self.tree.setExpanded(pidx, True)
 
-        # Src files (filter to common C/C++ extensions)
-        src_dir = os.path.join(self.project_root, "Src")
-        code_ext = {
-            ".c",
-            ".cc",
-            ".cpp",
-            ".cxx",
-            ".h",
-            ".hh",
-            ".hpp",
-            ".hxx",
-            ".ipp",
-            ".inl",
-            ".tpp",
-        }
-        for root, _, files in os.walk(src_dir) if os.path.isdir(src_dir) else []:
-            for f in files:
-                if os.path.splitext(f)[1].lower() in code_ext:
-                    rel = os.path.relpath(os.path.join(root, f), self.project_root)
-                    self.srcList.addItem(rel)
+    def _refreshTree(self):
+        self.fsModel.setRootPath("")
+        self.populateLists()
 
-        # Assets (all files)
-        assets_dir = os.path.join(self.project_root, "assets")
-        for root, _, files in os.walk(assets_dir) if os.path.isdir(assets_dir) else []:
-            for f in files:
-                rel = os.path.relpath(os.path.join(root, f), self.project_root)
-                self.assetList.addItem(rel)
-
-        self.srcList.sortItems()
-        self.assetList.sortItems()
-
-    def _openFromList(self, item):
-        rel_path = item.text()
-        abs_path = os.path.join(self.project_root, rel_path)
-        self.openFile(abs_path)
+    def _onTreeDoubleClicked(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        sidx = self.proxyModel.mapToSource(index)
+        path = self.fsModel.filePath(sidx)
+        if os.path.isdir(path):
+            self.tree.setExpanded(index, not self.tree.isExpanded(index))
+            return
+        self.openFile(path)
 
     def _is_text(self, path):
         # Heuristic: try utf-8 decode; if fail, but content mostly printable and has newlines, accept as text
@@ -778,6 +937,64 @@ class ProjectViewer(QWidget):
         mark = "*" if self._dirty else ""
         self.currentFileLabel.setText(f"{rel}{mark}")
 
+    # Theming helpers
+    def _applySavedTheme(self):
+        theme = self.settings.value("theme", "dark")
+        self._applyTheme(theme)
+
+    def _toggleTheme(self):
+        cur = self.settings.value("theme", "dark")
+        new = "light" if cur == "dark" else "dark"
+        self.settings.setValue("theme", new)
+        self._applyTheme(new)
+
+    def _applyTheme(self, theme):
+        if theme == "dark":
+            self._setDarkStyle()
+        else:
+            self._setLightStyle()
+
+    def _setDarkStyle(self):
+        ss = """
+            QWidget { background: #1e1e1e; color: #ddd; }
+            QToolBar { background: #252526; border: 0; }
+            QPlainTextEdit { background: #1b1b1b; border: 1px solid #333; }
+            QTreeView { background: #1b1b1b; border: 1px solid #333; }
+            QLineEdit { background: #2a2a2a; border: 1px solid #444; padding: 4px; }
+        """
+        self.setStyleSheet(ss)
+
+    def _setLightStyle(self):
+        ss = """
+            QWidget { background: #fafafa; color: #222; }
+            QToolBar { background: #f0f0f0; border: 0; }
+            QPlainTextEdit { background: #ffffff; border: 1px solid #ccc; }
+            QTreeView { background: #ffffff; border: 1px solid #ccc; }
+            QLineEdit { background: #ffffff; border: 1px solid #bbb; padding: 4px; }
+        """
+        self.setStyleSheet(ss)
+
+    def _openInExplorer(self):
+        try:
+            os.startfile(self.project_root)
+        except Exception as e:
+            QMessageBox.warning(self, "Explorer", str(e))
+
+    # Drag & drop
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls:
+            path = urls[0].toLocalFile()
+            if path:
+                self.openFile(path)
+        super().dropEvent(event)
+
     def _onTextChanged(self):
         if self.currentFilePath is None:
             return
@@ -797,7 +1014,20 @@ class ProjectViewer(QWidget):
             QMessageBox.critical(self, "Save File", f"Failed to save file:\n{e}")
 
     def buildProject(self):
-        build_project(self.project_name, open_in_android_studio=True)
+        # Log to console
+        try:
+            if hasattr(self, "console"):
+                self.console.appendPlainText("== Build started ==")
+        except Exception:
+            pass
+        try:
+            build_project(self.project_name, open_in_android_studio=True)
+            if hasattr(self, "console"):
+                self.console.appendPlainText("== Build finished ==")
+        except Exception as e:
+            if hasattr(self, "console"):
+                self.console.appendPlainText(f"Build failed: {e}")
+            raise
 
     # -------- View helpers --------
     def _setView(self, idx):
