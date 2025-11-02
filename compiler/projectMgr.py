@@ -105,7 +105,6 @@ class ProjectManager(QWidget):
                 self.templateSelectionChoice = QSelectBox(self)
                 self.templateSelectionChoice.addItems(
                     [
-                        "Empty Project",
                         "Engine Override (basic)",
                         "Engine Injection (advanced)",
                     ]
@@ -174,12 +173,7 @@ class ProjectManager(QWidget):
         if dlg.exec() == QMessageBox.Accepted:
             project_name = dlg.projectNameInput.text()
             template = dlg.templateSelectionChoice.currentText()
-            if template == "Empty Project":
-                shutil.copytree(
-                    "./src/templates/blank/",
-                    f"./projects/{project_name}/",
-                )
-            elif template == "Engine Override (basic)":
+            if template == "Engine Override (basic)":
                 shutil.copytree(
                     "./src/templates/engine_override/",
                     f"./projects/{project_name}/",
