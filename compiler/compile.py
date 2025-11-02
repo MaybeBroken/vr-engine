@@ -466,7 +466,7 @@ if __name__ == "__main__":
         open_android_studio(compiler.project_dir)
 
 
-def main(project_name: str, open_in_android_studio: bool = False):
+def build_project(project_name: str, open_in_android_studio: bool = False):
     project = Project(project_name)
     compiler = Compiler(project)
     compiler.compile()

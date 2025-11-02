@@ -1,0 +1,16 @@
+#OVERRIDE
+// INTERNAL DEFINITIONS, for reference only
+
+//"includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
+// "var_space": {"entry": VAR_SPACE_ENTRY, "exit": VAR_SPACE_EXIT},
+// "class": {"entry": CLASS_ENTRY, "exit": CLASS_EXIT},
+// "entry_point_init": {"entry": ENTRY_POINT_INIT, "exit": ENTRY_POINT_EXIT},
+// "public": {"entry": PUBLIC_ENTRY, "exit": PUBLIC_EXIT},
+// "class_init": {"entry": CLASS_INIT_ENTRY, "exit": CLASS_INIT_EXIT},
+// "app_extensions": {"entry": APP_EXTENSIONS_ENTRY, "exit": APP_EXTENSIONS_EXIT},
+// "app_init": {"entry": APP_INIT_ENTRY, "exit": APP_INIT_EXIT},
+// "app_shutdown": {"entry": APP_SHUTDOWN_ENTRY, "exit": APP_SHUTDOWN_EXIT},
+// "session_init": {"entry": SESSION_INIT_ENTRY, "exit": SESSION_INIT_EXIT},
+// "session_end": {"entry": SESSION_END_ENTRY, "exit": SESSION_END_EXIT},
+// "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
+// "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
