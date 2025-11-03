@@ -27,7 +27,8 @@
         "algorithm": "cpp",
         "xiosbase": "cpp",
         "xlocale": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "filesystem": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [

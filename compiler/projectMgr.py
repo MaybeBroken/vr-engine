@@ -1,3 +1,4 @@
+import threading
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -48,6 +49,7 @@ from PySide6.QtCore import (
     QUrl,
 )
 from PySide6.QtMultimedia import QMediaPlayer
+import subprocess
 from compile import build_project
 import os
 import sys
@@ -452,6 +454,7 @@ class ProjectViewer(QWidget):
         self.buildAction = QAction("Build", self)
         self.saveAction = QAction("Save", self)
         self.refreshAction = QAction("Refresh", self)
+        self.openWithCodeAction = QAction("Open with Code", self)
         self.themeAction = QAction("Toggle Theme", self)
         self.showConsoleAction = QAction("Show Console", self)
         self.showConsoleAction.setCheckable(True)
@@ -465,6 +468,7 @@ class ProjectViewer(QWidget):
         self.toolbar.addAction(self.buildAction)
         self.toolbar.addAction(self.saveAction)
         self.toolbar.addAction(self.refreshAction)
+        self.toolbar.addAction(self.openWithCodeAction)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.openExplorerAction)
         self.toolbar.addSeparator()
@@ -745,6 +749,7 @@ class ProjectViewer(QWidget):
         self.buildAction.triggered.connect(self.buildProject)
         self.saveAction.triggered.connect(self.saveCurrentFile)
         self.refreshAction.triggered.connect(self._refreshTree)
+        self.openWithCodeAction.triggered.connect(self._openWithCode)
         self.actionClearConsole.triggered.connect(self.console.clear)
         self.themeAction.triggered.connect(self._toggleTheme)
         self.openExplorerAction.triggered.connect(self._openInExplorer)
@@ -848,6 +853,11 @@ class ProjectViewer(QWidget):
     def _refreshTree(self):
         self.fsModel.setRootPath("")
         self.populateLists()
+
+    def _openWithCode(self):
+        def _th():
+            os.system(f'code "{self.project_root}/Src/main.cpp" "{self.project_root}"')
+        threading.Thread(target=_th, daemon=True).start()
 
     def _onTreeDoubleClicked(self, index):
         if not index.isValid():
