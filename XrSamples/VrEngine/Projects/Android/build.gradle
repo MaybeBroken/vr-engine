@@ -53,7 +53,7 @@ android {
         abiFilters 'arm64-v8a'
       }
       cmake {
-         targets "VrEngine"
+         targets "xrsamples_xrhands_and_controllers"
       }
     }
   }
