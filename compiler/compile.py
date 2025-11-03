@@ -417,11 +417,37 @@ class Compiler:
             'android:value="VrEngine"',
             f'android:value="{self.project.name.replace("-", "_").replace(" ", "_")}"',
         )
+        manifest_content = manifest_content.replace(
+            'package="com.maybebroken.vrengine"',
+            f'package="com.maybebroken.vrengine.{self.project.name.replace("-", "_").replace(" ", "_")}"',
+        )
+        manifest_content = manifest_content.replace(
+            'android:label="VrEngine"',
+            f'android:label="{self.project.name}"',
+        )
+        manifest_content = manifest_content.replace(
+            'android:name="com.maybebroken.vrengine.MainActivity"',
+            f'android:name="com.maybebroken.vrengine.{self.project.name.replace("-", "_").replace(" ", "_")}.MainActivity"',
+        )
         with open(
             self.project_dir / "Projects/Android/AndroidManifest.xml",
             "w",
         ) as f:
             f.write(manifest_content)
+        with open(
+            self.project_dir / "res/values/strings.xml",
+            "r",
+        ) as f:
+            strings_content = f.read()
+        strings_content = strings_content.replace(
+            '<string name="app_name">VrEngine</string>',
+            f'<string name="app_name">{self.project.name}</string>',
+        )
+        with open(
+            self.project_dir / "res/values/strings.xml",
+            "w",
+        ) as f:
+            f.write(strings_content)
 
 
 def open_android_studio(project_path: pathlib.Path):

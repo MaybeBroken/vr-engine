@@ -122,6 +122,7 @@ class ProjectManager(QWidget):
         )
         if confirm == QMessageBox.Yes:
             shutil.rmtree(f"./projects/{project_name}/")
+            shutil.rmtree(f"../XrSamples/{project_name}/", ignore_errors=True)
             self.populateProjectList()
 
     def populateProjectList(self):
@@ -480,18 +481,12 @@ class ProjectViewer(QWidget):
         headerLayout.setContentsMargins(8, 4, 8, 4)
         headerLayout.setSpacing(8)
 
-        self.saveButton = QPushButton("Save", headerWidget)
-        self.saveButton.setDisabled(True)
-        # Keep the button compact
-        self.saveButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-
         self.currentFileLabel = QLabel("No file opened", headerWidget)
         self.currentFileLabel.setStyleSheet("color: #666;")
         # Single-line label; don't let it drive vertical growth
         self.currentFileLabel.setWordWrap(False)
         self.currentFileLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        headerLayout.addWidget(self.saveButton)
         headerLayout.addStretch(1)
         headerLayout.addWidget(self.currentFileLabel)
 
@@ -749,7 +744,6 @@ class ProjectViewer(QWidget):
         # Signals
         self.buildAction.triggered.connect(self.buildProject)
         self.saveAction.triggered.connect(self.saveCurrentFile)
-        self.saveButton.clicked.connect(self.saveCurrentFile)
         self.refreshAction.triggered.connect(self._refreshTree)
         self.actionClearConsole.triggered.connect(self.console.clear)
         self.themeAction.triggered.connect(self._toggleTheme)
@@ -1148,8 +1142,6 @@ class ProjectViewer(QWidget):
     # -------- View helpers --------
     def _setView(self, idx):
         self.viewerStack.setCurrentIndex(idx)
-        # Save button only enabled for text editor
-        self.saveButton.setEnabled(idx == 0 and self.currentFilePath is not None)
 
     def _showTextFile(self, path):
         try:
