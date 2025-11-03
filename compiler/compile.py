@@ -132,8 +132,9 @@ class Indicators:
 def parse_template_project(context: "Compiler"):
     NEW_PROJECT_DIR = XR_PROJECTS_ROOT / context.project.name
     template_files = list(TEMPLATE_ROOT.rglob("*"))
-    if NEW_PROJECT_DIR.exists():
-        shutil.rmtree(NEW_PROJECT_DIR)
+    for existing in NEW_PROJECT_DIR.parent.glob("*"):
+        if existing.is_dir():
+            shutil.rmtree(existing)
     for file_path_obj in template_files:
         if any(
             (
