@@ -10,7 +10,7 @@ import shutil
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
     XR_PROJECTS_ROOT = (SCRIPT_DIR.parent / "XrSamples").resolve()
-    TEMPLATE_ROOT = XR_PROJECTS_ROOT / "VrEngine"
+    TEMPLATE_ROOT = SCRIPT_DIR / "src" / "engine" / "VrEngine"
     TEMPLATE_EXCLUDES = [
         "Projects/Android/.cxx/",
         "Projects/Android/build/",
