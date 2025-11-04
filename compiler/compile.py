@@ -163,6 +163,30 @@ def parse_template_project(context: "Compiler"):
     return NEW_PROJECT_DIR
 
 
+def compile_manifest(context: "Compiler"):
+    if context.manifest_content is None:
+        print("No manifest injector content to apply.")
+        return
+    manifest_path = context.project_dir / "Projects" / "Android" / "AndroidManifest.xml"
+    with open(manifest_path, "r", encoding="utf-8-sig", errors="ignore") as f:
+        manifest_content = f.read()
+    inject_start = "<!--INJECT_START-->"
+    inject_end = "<!--INJECT_END-->"
+    if inject_start in manifest_content and inject_end in manifest_content:
+        start_index = manifest_content.index(inject_start) + len(inject_start)
+        end_index = manifest_content.index(inject_end)
+        new_manifest_content = (
+            manifest_content[:start_index]
+            + "\n"
+            + context.manifest_content
+            + "\n"
+            + manifest_content[end_index:]
+        )
+        with open(manifest_path, "w", encoding="utf-8-sig", errors="ignore") as f:
+            f.write(new_manifest_content)
+        print("Manifest injector content applied successfully.")
+
+
 class Parser:
     def __init__(self):
         self.indicators = Indicators.all_indicators()
@@ -177,6 +201,7 @@ class Project:
         self.path: pathlib.Path = path
         self.assets_dir: pathlib.Path = self.path / ASSETS_DIR
         self.src_dir: pathlib.Path = self.path / C_FILES
+        self.manifest_file: pathlib.Path = self.path / "AndroidManifest_injector.xml"
         self.source_files: list[pathlib.Path] = []
         self.asset_files: list[pathlib.Path] = []
         print(
@@ -210,7 +235,16 @@ class Project:
         with open(main_file, "r", encoding="utf-8-sig", errors="ignore") as f:
             main_content = f.read()
 
-        return self.parse(main_content)
+        if self.manifest_file.exists():
+            print(f"Applying Android Manifest injector from {self.manifest_file}.")
+            with open(
+                self.manifest_file, "r", encoding="utf-8-sig", errors="ignore"
+            ) as mf:
+                manifest_content = mf.read()
+
+        return self.parse(main_content), (
+            manifest_content if self.manifest_file.exists() else None
+        )
 
     def parse(self, main_content: str):
         modifications = []
@@ -312,10 +346,11 @@ class Compiler:
     def compile(self):
         self.project_dir = parse_template_project(self)
         self.assemble_source()
+        compile_manifest(self)
         pass
 
     def assemble_source(self):
-        self.compiled_project = self.project.build_project()
+        self.compiled_project, self.manifest_content = self.project.build_project()
         with open(self.root_file, "r", encoding="utf-8-sig", errors="ignore") as f:
             root_content = f.read()
 

@@ -79,6 +79,10 @@ class ProjectManager(QWidget):
         self.deleteProjectButton.setDisabled(True)
         self.layout.addWidget(self.deleteProjectButton)
 
+        self.modifyConfigButton = QPushButton("Modify Project Config", self)
+        self.modifyConfigButton.setDisabled(True)
+        self.layout.addWidget(self.modifyConfigButton)
+
         self.newProjectButton = QPushButton("New Project +", self)
         self.layout.addWidget(self.newProjectButton)
         self.loadProjectButton.clicked.connect(
@@ -86,12 +90,18 @@ class ProjectManager(QWidget):
         )
         self.deleteProjectButton.clicked.connect(self.deleteProject)
         self.newProjectButton.clicked.connect(self.createNewProject)
+        self.modifyConfigButton.clicked.connect(
+            lambda: self.editProjectConfig(self.projectList.currentItem().text())
+        )
         self.projectList.itemSelectionChanged.connect(
             lambda: [
                 self.loadProjectButton.setDisabled(
                     self.projectList.currentItem() is None
                 ),
                 self.deleteProjectButton.setDisabled(
+                    self.projectList.currentItem() is None
+                ),
+                self.modifyConfigButton.setDisabled(
                     self.projectList.currentItem() is None
                 ),
                 self.loadProjectButton.setText(
@@ -134,6 +144,83 @@ class ProjectManager(QWidget):
         self.loadProjectButton.setDisabled(True)
         self.loadProjectButton.setText("Load Project")
         self.deleteProjectButton.setDisabled(True)
+        self.modifyConfigButton.setDisabled(True)
+
+    def editProjectConfig(self, project_name: str):
+        class EditConfigDialog(QDialog):
+            def __init__(self, project_name: str, parent=None):
+                super().__init__(parent)
+                self.setWindowTitle(f"Edit Project Config: {project_name}")
+                self.setModal(True)
+                # Implementation of config editing UI goes here
+                self.projectNameInput = QLineEdit(self)
+                self.projectNameInput.setText(project_name)
+
+                warn_manifest_override = None
+                if os.path.exists(
+                    f"./projects/{project_name}/AndroidManifest_injector.xml"
+                ):
+                    warn_manifest_override = QLabel(
+                        "<b>Warning:</b> This project already has a manifest, any changes are destructive",
+                        self,
+                        textFormat=Qt.RichText,
+                    )
+                    warn_manifest_override.setStyleSheet("color: #ff4400;")
+                    warn_manifest_override.setWordWrap(True)
+
+                self.manifest_template_choice = QComboBox(self)
+                self.manifest_template_choice.addItems(
+                    [
+                        "No change (keep existing)",
+                        "Default (Basic VR features)",
+                        "Full (All features)",
+                    ]
+                )
+
+                buttons = QDialogButtonBox(
+                    QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self
+                )
+                buttons.accepted.connect(self.accept)
+                buttons.rejected.connect(self.reject)
+
+                form = QFormLayout()
+                form.addRow("Project name:", self.projectNameInput)
+
+                if warn_manifest_override:
+                    form.addRow(warn_manifest_override)
+                form.addRow("Android Manifest:", self.manifest_template_choice)
+                form.addRow(buttons)
+                self.setLayout(form)
+                self.resize(380, 0)
+
+        dlg = EditConfigDialog(project_name, self)
+        dlg.exec()
+
+        # Handle the edited config values
+        if dlg.result() == QDialog.Accepted:
+            new_project_name = dlg.projectNameInput.text().strip()
+            if new_project_name and new_project_name != project_name:
+                # Rename project directory
+                os.rename(
+                    f"./projects/{project_name}/",
+                    f"./projects/{new_project_name}/",
+                )
+                project_name = new_project_name
+
+            if dlg.manifest_template_choice.currentIndex() == 1:
+                manifest_src = "./src/templates/AndroidManifest_default.xml"
+            elif dlg.manifest_template_choice.currentIndex() == 2:
+                manifest_src = "./src/templates/AndroidManifest_full.xml"
+            else:
+                manifest_src = None
+
+            if manifest_src:
+                shutil.copy2(
+                    manifest_src,
+                    f"./projects/{project_name}/AndroidManifest_injector.xml",
+                )
+
+            self.populateProjectList()
 
     def createNewProject(self):
         class NewProjectDialog(QDialog):
@@ -150,6 +237,14 @@ class ProjectManager(QWidget):
                     [
                         "Engine Override (basic)",
                         "Engine Injection (advanced)",
+                    ]
+                )
+                self.manifestModeSelectionChoice = QComboBox(self)
+                self.manifestModeSelectionChoice.addItems(
+                    [
+                        "Don't override (use engine defaults)",
+                        "Default (Basic VR features)",
+                        "Full (All features)",
                     ]
                 )
 
@@ -169,6 +264,7 @@ class ProjectManager(QWidget):
                 form = QFormLayout(self)
                 form.addRow("Project name:", self.projectNameInput)
                 form.addRow("Template:", self.templateSelectionChoice)
+                form.addRow("Android Manifest:", self.manifestModeSelectionChoice)
                 form.addRow(self.errorLabel)
                 form.addRow(buttons)
                 self.setLayout(form)
@@ -225,6 +321,15 @@ class ProjectManager(QWidget):
                 shutil.copytree(
                     "./src/templates/engine_injection/",
                     f"./projects/{project_name}/",
+                )
+            if dlg.manifestModeSelectionChoice.currentIndex() == 1:
+                manifest_src = "./src/templates/AndroidManifest_default.xml"
+            elif dlg.manifestModeSelectionChoice.currentIndex() == 2:
+                manifest_src = "./src/templates/AndroidManifest_full.xml"
+            if dlg.manifestModeSelectionChoice.currentIndex() != 0:
+                shutil.copy2(
+                    manifest_src,
+                    f"./projects/{project_name}/AndroidManifest_injector.xml",
                 )
             self.populateProjectList()
             self.projectViewer = ProjectViewer(project_name, self)
@@ -857,6 +962,7 @@ class ProjectViewer(QWidget):
     def _openWithCode(self):
         def _th():
             os.system(f'code "{self.project_root}/Src/main.cpp" "{self.project_root}"')
+
         threading.Thread(target=_th, daemon=True).start()
 
     def _onTreeDoubleClicked(self, index):
