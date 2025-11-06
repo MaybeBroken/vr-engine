@@ -1,0 +1,5 @@
+C:\Users\david\git\vr-engine\CMakeLists.txt
+C:\Users\david\git\vr-engine\3rdParty\CMakeLists.txt
+C:\Users\david\git\vr-engine\XrSamples\CMakeLists.txt
+C:\Users\david\git\vr-engine\SampleXrFramework\CMakeLists.txt
+C:\Users\david\git\vr-engine\XrSamples\VrEngine\CMakeLists.txt

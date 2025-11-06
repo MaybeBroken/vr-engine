@@ -1,0 +1,88 @@
+{
+  "buildFiles": [
+    "C:\\Users\\david\\git\\vr-engine\\CMakeLists.txt",
+    "C:\\Users\\david\\git\\vr-engine\\3rdParty\\CMakeLists.txt",
+    "C:\\Users\\david\\git\\vr-engine\\XrSamples\\CMakeLists.txt",
+    "C:\\Users\\david\\git\\vr-engine\\SampleXrFramework\\CMakeLists.txt",
+    "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+      "-C",
+      "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+    "-C",
+    "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "samplexrframework-Debug-arm64-v8a": {
+      "artifactName": "samplexrframework",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+        "samplexrframework"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a\\SampleXrFramework\\libsamplexrframework.a",
+      "runtimeFiles": []
+    },
+    "xrsamples_xrhands_and_controllers-Debug-arm64-v8a": {
+      "artifactName": "xrsamples_xrhands_and_controllers",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+        "xrsamples_xrhands_and_controllers"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\1422704n\\obj\\arm64-v8a\\libxrsamples_xrhands_and_controllers.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\git\\vr-engine\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\cd6b26341e95fc5692ebda4ce8586bac\\transformed\\openxr_loader_for_android-1.1.53\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "stb-Debug-arm64-v8a": {
+      "artifactName": "stb",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+        "stb"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a\\3rdParty\\libstb.a",
+      "runtimeFiles": []
+    },
+    "app_glue-Debug-arm64-v8a": {
+      "artifactName": "app_glue",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+        "app_glue"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a\\SampleXrFramework\\libapp_glue.a",
+      "runtimeFiles": []
+    },
+    "minizip-Debug-arm64-v8a": {
+      "artifactName": "minizip",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a",
+        "minizip"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\Users\\david\\git\\vr-engine\\XrSamples\\VrEngine\\Projects\\Android\\.cxx\\Debug\\1422704n\\arm64-v8a\\3rdParty\\libminizip.a",
+      "runtimeFiles": []
+    }
+  }
+}

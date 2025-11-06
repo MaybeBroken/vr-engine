@@ -1,0 +1,369 @@
+{
+  "buildFiles": [
+    "C:\\dev\\Samples\\CMakeLists.txt",
+    "C:\\dev\\Samples\\3rdParty\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\CMakeLists.txt",
+    "C:\\dev\\Samples\\SampleXrFramework\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrInput\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrHandsFB\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrSpaceWarp\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrSceneModel\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrControllers\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrPassthrough\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrColorSpaceFB\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrSceneSharing\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrMicrogestures\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrSpatialAnchor\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrDynamicObjects\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrHandDataSource\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrVirtualKeyboard\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrBodyFaceEyeSocial\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrColocationDiscovery\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrPassthroughOcclusion\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrCompositor_NativeActivity\\CMakeLists.txt",
+    "C:\\dev\\Samples\\XrSamples\\XrHandTrackingWideMotionMode\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+      "-C",
+      "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+    "-C",
+    "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "xrhandtrackingwidemotionmode-Debug-arm64-v8a": {
+      "artifactName": "xrhandtrackingwidemotionmode",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrhandtrackingwidemotionmode"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrhandtrackingwidemotionmode.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrcompositor-Debug-arm64-v8a": {
+      "artifactName": "xrcompositor",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrcompositor"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrcompositor.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrhanddatasource-Debug-arm64-v8a": {
+      "artifactName": "xrhanddatasource",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrhanddatasource"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrhanddatasource.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrspacewarp-Debug-arm64-v8a": {
+      "artifactName": "xrspacewarp",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrspacewarp"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrspacewarp.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrpassthroughocclusion-Debug-arm64-v8a": {
+      "artifactName": "xrpassthroughocclusion",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrpassthroughocclusion"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrpassthroughocclusion.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "spatialanchor-Debug-arm64-v8a": {
+      "artifactName": "spatialanchor",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "spatialanchor"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libspatialanchor.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrsamples_xrcolorspacefb-Debug-arm64-v8a": {
+      "artifactName": "xrsamples_xrcolorspacefb",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrsamples_xrcolorspacefb"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrsamples_xrcolorspacefb.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrvirtualkeyboard-Debug-arm64-v8a": {
+      "artifactName": "xrvirtualkeyboard",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrvirtualkeyboard"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrvirtualkeyboard.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrsamples_xrinput-Debug-arm64-v8a": {
+      "artifactName": "xrsamples_xrinput",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrsamples_xrinput"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrsamples_xrinput.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrpassthrough-Debug-arm64-v8a": {
+      "artifactName": "xrpassthrough",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrpassthrough"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrpassthrough.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrcontrollers-Debug-arm64-v8a": {
+      "artifactName": "xrcontrollers",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrcontrollers"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrcontrollers.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrcolocationdiscovery-Debug-arm64-v8a": {
+      "artifactName": "xrcolocationdiscovery",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrcolocationdiscovery"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrcolocationdiscovery.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "scenemodel-Debug-arm64-v8a": {
+      "artifactName": "scenemodel",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "scenemodel"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libscenemodel.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrbodyfaceeyesocial-Debug-arm64-v8a": {
+      "artifactName": "xrbodyfaceeyesocial",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrbodyfaceeyesocial"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrbodyfaceeyesocial.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "samplexrframework-Debug-arm64-v8a": {
+      "artifactName": "samplexrframework",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "samplexrframework"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a\\SampleXrFramework\\libsamplexrframework.a",
+      "runtimeFiles": []
+    },
+    "xrsamples_xrhands_and_controllers-Debug-arm64-v8a": {
+      "artifactName": "xrsamples_xrhands_and_controllers",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrsamples_xrhands_and_controllers"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrsamples_xrhands_and_controllers.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "stb-Debug-arm64-v8a": {
+      "artifactName": "stb",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "stb"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a\\3rdParty\\libstb.a",
+      "runtimeFiles": []
+    },
+    "xrdynamicobjects-Debug-arm64-v8a": {
+      "artifactName": "xrdynamicobjects",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrdynamicobjects"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrdynamicobjects.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrhandsfb-Debug-arm64-v8a": {
+      "artifactName": "xrhandsfb",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrhandsfb"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrhandsfb.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "xrmicrogestures-Debug-arm64-v8a": {
+      "artifactName": "xrmicrogestures",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "xrmicrogestures"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libxrmicrogestures.so",
+      "runtimeFiles": [
+        "C:\\dev\\Samples\\3rdParty\\khronos\\ktx\\lib\\android\\arm64-v8a\\libktx.so",
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "scenesharing-Debug-arm64-v8a": {
+      "artifactName": "scenesharing",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "scenesharing"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\build\\intermediates\\cxx\\Debug\\j5o12491\\obj\\arm64-v8a\\libscenesharing.so",
+      "runtimeFiles": [
+        "C:\\Users\\david\\.gradle\\caches\\transforms-3\\a06f1f81c0a23a163ec8e732d6380a36\\transformed\\openxr_loader_for_android-1.1.46\\prefab\\modules\\openxr_loader\\libs\\android.arm64-v8a\\libopenxr_loader.so"
+      ]
+    },
+    "app_glue-Debug-arm64-v8a": {
+      "artifactName": "app_glue",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "app_glue"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a\\SampleXrFramework\\libapp_glue.a",
+      "runtimeFiles": []
+    },
+    "minizip-Debug-arm64-v8a": {
+      "artifactName": "minizip",
+      "buildCommandComponents": [
+        "C:\\Users\\david\\AppData\\Local\\Android\\Sdk\\cmake\\3.10.2.4988404\\bin\\ninja.exe",
+        "-C",
+        "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a",
+        "minizip"
+      ],
+      "abi": "arm64-v8a",
+      "output": "C:\\dev\\Samples\\XrSamples\\XrHandsAndControllers\\Projects\\Android\\.cxx\\Debug\\j5o12491\\arm64-v8a\\3rdParty\\libminizip.a",
+      "runtimeFiles": []
+    }
+  }
+}
