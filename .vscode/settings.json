@@ -29,7 +29,8 @@
         "xlocale": "cpp",
         "sstream": "cpp",
         "filesystem": "cpp",
-        "optional": "cpp"
+        "optional": "cpp",
+        "chrono": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
