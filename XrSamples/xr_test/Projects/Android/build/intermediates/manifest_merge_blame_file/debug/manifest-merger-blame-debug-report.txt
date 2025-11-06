@@ -1,0 +1,132 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.maybebroken.VrEngine"
+4    android:installLocation="auto"
+5    android:versionCode="1"
+6    android:versionName="1.0" >
+7
+8    <uses-sdk
+9        android:minSdkVersion="26"
+9-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+10        android:targetSdkVersion="32" />
+10-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+11    <!-- INJECT_START -->
+12    <uses-feature
+12-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:10:1-13:3
+13        android:glEsVersion="0x00030001"
+13-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:11:3-35
+14        android:required="true" />
+14-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:12:3-26
+15    <uses-feature
+15-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:14:1-17:3
+16        android:name="android.hardware.vr.headtracking"
+16-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:15:3-50
+17        android:required="true" />
+17-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:16:3-26
+18    <uses-feature
+18-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:18:1-21:3
+19        android:name="com.oculus.experimental.enabled"
+19-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:19:3-49
+20        android:required="true" />
+20-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:20:3-26
+21    <!-- Tell the system this app can handle tracked remotes and hands -->
+22    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+22-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:23:1-71
+22-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:23:18-68
+23
+24    <uses-feature
+24-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:24:1-27:3
+25        android:name="oculus.software.handtracking"
+25-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:25:3-46
+26        android:required="false" />
+26-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:26:3-27
+27
+28    <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
+28-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:13:3-74
+28-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:13:20-71
+29    <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
+29-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:14:3-81
+29-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:14:20-78
+30
+31    <queries>
+31-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:16:3-27:13
+32
+33        <!-- to talk to the broker -->
+34        <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
+34-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:18:5-114
+34-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:18:15-111
+35
+36        <!-- so client-side code of runtime/layers can talk to their service sides -->
+37        <intent>
+37-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:21:5-23:14
+38            <action android:name="org.khronos.openxr.OpenXRRuntimeService" />
+38-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:22:7-72
+38-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:22:15-69
+39        </intent>
+40        <intent>
+40-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:24:5-26:14
+41            <action android:name="org.khronos.openxr.OpenXRApiLayerService" />
+41-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:25:7-73
+41-->[org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:25:15-70
+42        </intent>
+43    </queries> <!-- INJECT_END -->
+44    <application
+44-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:29:3-58:17
+45        android:allowBackup="false"
+45-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:30:5-32
+46        android:debuggable="true"
+47        android:extractNativeLibs="false"
+48        android:label="@string/app_name"
+48-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:31:5-37
+49        android:testOnly="true" >
+50
+51        <!--
+52         launchMode is set to singleTask because there should never be multiple copies of the
+53		app running
+54        -->
+55        <!--
+56         Theme.Black.NoTitleBar.Fullscreen gives solid black instead of a (bad stereoscopic)
+57		gradient on app transition
+58        -->
+59        <activity
+59-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:37:5-57:16
+60            android:name="com.oculus.xrsamples.xrhands_and_controllers.MainActivity"
+60-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:38:7-79
+61            android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"
+61-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:43:7-108
+62            android:exported="true"
+62-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:44:7-30
+63            android:label="@string/app_name"
+63-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:40:7-39
+64            android:launchMode="singleTask"
+64-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:41:7-38
+65            android:screenOrientation="landscape"
+65-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:42:7-44
+66            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" >
+66-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:39:7-71
+67
+68            <!-- Tell NativeActivity the name of the .so -->
+69            <meta-data
+69-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:47:7-50:9
+70                android:name="android.app.lib_name"
+70-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:48:9-44
+71                android:value="xrsamples_xrhands_and_controllers" />
+71-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:49:9-58
+72            <!-- This filter lets the apk show up as a launchable icon -->
+73            <intent-filter>
+73-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:52:7-56:23
+74                <action android:name="android.intent.action.MAIN" />
+74-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:53:9-61
+74-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:53:17-58
+75
+76                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+76-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:54:9-85
+76-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:54:19-82
+77                <category android:name="android.intent.category.LAUNCHER" />
+77-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:55:9-69
+77-->C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:55:19-66
+78            </intent-filter>
+79        </activity>
+80    </application>
+81
+82</manifest>

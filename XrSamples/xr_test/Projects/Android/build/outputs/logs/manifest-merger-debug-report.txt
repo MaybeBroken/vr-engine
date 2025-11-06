@@ -1,0 +1,138 @@
+-- Merging decision tree log ---
+manifest
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+MERGED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:1:1-29:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:2:1-59:12
+	package
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:4:3-57
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+	android:versionName
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:6:3-28
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+	xmlns:android
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:3:3-61
+	android:versionCode
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:5:3-26
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+	android:installLocation
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:7:3-33
+uses-feature#0x00030001
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:10:1-13:3
+	android:glEsVersion
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:11:3-35
+	android:required
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:12:3-26
+uses-feature#android.hardware.vr.headtracking
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:14:1-17:3
+	android:required
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:16:3-26
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:15:3-50
+uses-feature#com.oculus.experimental.enabled
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:18:1-21:3
+	android:required
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:20:3-26
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:19:3-49
+uses-permission#com.oculus.permission.HAND_TRACKING
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:23:1-71
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:23:18-68
+uses-feature#oculus.software.handtracking
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:24:1-27:3
+	android:required
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:26:3-27
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:25:3-46
+application
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:29:3-58:17
+	android:label
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:31:5-37
+	android:allowBackup
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:30:5-32
+activity#com.oculus.xrsamples.xrhands_and_controllers.MainActivity
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:37:5-57:16
+	android:screenOrientation
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:42:7-44
+	android:label
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:40:7-39
+	android:launchMode
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:41:7-38
+	android:exported
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:44:7-30
+	android:configChanges
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:43:7-108
+	android:theme
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:39:7-71
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:38:7-79
+meta-data#android.app.lib_name
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:47:7-50:9
+	android:value
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:49:9-58
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:48:9-44
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER+category:name:org.khronos.openxr.intent.category.IMMERSIVE_HMD
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:52:7-56:23
+action#android.intent.action.MAIN
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:53:9-61
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:53:17-58
+category#org.khronos.openxr.intent.category.IMMERSIVE_HMD
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:54:9-85
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:54:19-82
+category#android.intent.category.LAUNCHER
+ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:55:9-69
+	android:name
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml:55:19-66
+uses-sdk
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+MERGED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:11:3-72
+MERGED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:11:3-72
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		ADDED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+		INJECTED from C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\AndroidManifest.xml
+uses-permission#org.khronos.openxr.permission.OPENXR
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:13:3-74
+	android:name
+		ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:13:20-71
+uses-permission#org.khronos.openxr.permission.OPENXR_SYSTEM
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:14:3-81
+	android:name
+		ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:14:20-78
+queries
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:16:3-27:13
+provider
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:18:5-114
+	android:authorities
+		ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:18:15-111
+intent#action:name:org.khronos.openxr.OpenXRRuntimeService
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:21:5-23:14
+action#org.khronos.openxr.OpenXRRuntimeService
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:22:7-72
+	android:name
+		ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:22:15-69
+intent#action:name:org.khronos.openxr.OpenXRApiLayerService
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:24:5-26:14
+action#org.khronos.openxr.OpenXRApiLayerService
+ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:25:7-73
+	android:name
+		ADDED from [org.khronos.openxr:openxr_loader_for_android:1.1.53] C:\Users\david\.gradle\caches\transforms-3\cd6b26341e95fc5692ebda4ce8586bac\transformed\openxr_loader_for_android-1.1.53\AndroidManifest.xml:25:15-70
