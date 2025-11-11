@@ -12,6 +12,8 @@
 #include "Input/ControllerRenderer.h"
 #include "Input/TinyUI.h"
 #include "Render/SimpleBeamRenderer.h"
+#include "Render/SurfaceRender.h"
+#include "SceneModelGl.h"
 
 class VrEngine : public OVRFW::XrApp
 {

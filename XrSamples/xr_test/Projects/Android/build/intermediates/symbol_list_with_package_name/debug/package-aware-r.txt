@@ -1,2 +1,0 @@
-com.oculus.xrsamples.xrhands_and_controllers
-string app_name

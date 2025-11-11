@@ -1,7 +1,0 @@
-Executable : C:\Users\david\AppData\Local\Android\Sdk\cmake\3.10.2.4988404\bin\ninja.exe
-arguments : 
--C
-C:\Users\david\Git\vr-engine\XrSamples\xr_test\Projects\Android\.cxx\Debug\l33c6v3d\arm64-v8a
-xrsamples_xrhands_and_controllers
-jvmArgs : 
-

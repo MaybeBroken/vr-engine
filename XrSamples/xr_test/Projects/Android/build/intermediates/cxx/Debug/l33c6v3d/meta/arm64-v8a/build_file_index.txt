@@ -1,5 +1,0 @@
-C:\Users\david\Git\vr-engine\CMakeLists.txt
-C:\Users\david\Git\vr-engine\3rdParty\CMakeLists.txt
-C:\Users\david\Git\vr-engine\XrSamples\CMakeLists.txt
-C:\Users\david\Git\vr-engine\SampleXrFramework\CMakeLists.txt
-C:\Users\david\Git\vr-engine\XrSamples\xr_test\CMakeLists.txt
