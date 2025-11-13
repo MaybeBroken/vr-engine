@@ -6,6 +6,7 @@ import glob
 import os
 import pathlib
 import shutil
+import sys
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
@@ -493,22 +494,46 @@ def open_android_studio(project_path: pathlib.Path):
         )
     elif sys.platform == "darwin":
         android_studio_path = "/Applications/Android Studio.app/Contents/MacOS/studio"
+        if not os.path.exists(android_studio_path):
+            android_studio_path = (
+                str(pathlib.Path.home())
+                + "/Applications/Android Studio.app/Contents/MacOS/studio"
+            )
     elif sys.platform == "linux":
         android_studio_path = "/usr/local/android-studio/bin/studio.sh"
-
     if not os.path.exists(android_studio_path):
         print(
             f"Android Studio executable not found at {android_studio_path}. Please open the project manually."
         )
     else:
-        subprocess.Popen(
-            [
-                android_studio_path,
-                str(project_path) + "/Projects/Android/build.gradle",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        if sys.platform == "win32":
+            subprocess.Popen(
+                [
+                    android_studio_path,
+                    str(project_path) + "\\Projects\\Android\\build.gradle",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            gradle_path = str(project_path) + "/Projects/Android/build.gradle"
+            if sys.platform == "darwin":
+                cmd = ["open", "-a", "Android Studio", gradle_path]
+            else:
+                cmd = [android_studio_path, gradle_path]
+            print(f"Executing command: {' '.join(cmd)}")
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env={
+                    k: v
+                    for k, v in os.environ.items()
+                    if k not in ("JAVA_HOME", "JDK_HOME", "JRE_HOME")
+                },
+                start_new_session=True,
+            )
+
         print("Android Studio launched with the generated project.")
 
 
