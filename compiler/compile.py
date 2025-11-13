@@ -214,11 +214,7 @@ class Project:
 
     def resolve_asset_files(self) -> list[pathlib.Path]:
         asset_files = glob.glob(str(self.assets_dir) + "/**/*", recursive=True)
-        return [
-            pathlib.Path(f)
-            for f in asset_files
-            if os.path.isfile(f) and not ("main.cpp" in f)
-        ]
+        return [pathlib.Path(f) for f in asset_files if os.path.isfile(f)]
 
     def build_project(self):
         self.source_files = self.resolve_src_files()
