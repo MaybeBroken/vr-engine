@@ -67,7 +67,12 @@ public:
         if (fileSys)
         {
             std::string cubeModelPath = "apk:///assets/cube.obj";
-            model = CTX::LoadModelFromFile(*scene_, *fileSys, cubeModelPath, "cube");
+            model = CTX::LoadMeshFromFile(*scene_, cubeModelPath);
+        }
+        if (!model)
+        {
+            ALOG("AppInit::LoadMeshFromFile FAILED.");
+            return false;
         }
 
         // APP_INIT_MOD_EXIT

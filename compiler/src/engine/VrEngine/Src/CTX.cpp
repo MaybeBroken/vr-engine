@@ -13,8 +13,8 @@
 namespace CTX
 {
 
-    // load mesh data from a file on the disk and add to provided scene
-    Node::Ptr Scene::LoadMeshFromFile(const std::string &filename)
+    // load mesh data from a file on the disk into the provided scene
+    Node::Ptr LoadMeshFromFile(Scene &scene, const std::string &filename)
     {
         std::ifstream in(filename, std::ios::binary);
         if (!in)
@@ -25,7 +25,7 @@ namespace CTX
         std::ostringstream ss;
         ss << in.rdbuf();
         std::string contents = ss.str();
-        return LoadModelAsNode(*this, contents, filename);
+        return LoadModelAsNode(scene, contents, filename);
     }
 
     std::shared_ptr<Mesh> Scene::LoadMeshFromMemory(const void *data, size_t size, const std::string &name)
@@ -213,10 +213,6 @@ namespace CTX
         return std::unique_ptr<Renderer>(new GLRenderer());
     }
 
-    // Convenience wrapper
-    Node::Ptr LoadMeshFromFile(Scene &scene, const std::string &filename)
-    {
-        return scene.LoadMeshFromFile(filename);
-    }
+    // No-op: free function already implemented above.
 
 } // namespace CTX

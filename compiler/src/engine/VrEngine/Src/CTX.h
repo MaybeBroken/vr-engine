@@ -96,10 +96,6 @@ namespace CTX
 
     // Utility: simple OBJ-like loader (minimal support) that returns a Node with mesh attached.
     Node::Ptr LoadModelAsNode(Scene &scene, const std::string &objData, const std::string &name = "model");
-
-    // Utility: load model from file into this scene (member)
-    Node::Ptr LoadMeshFromFile(const std::string &filename);
-    // Convenience wrapper: load into an explicit scene
     Node::Ptr LoadMeshFromFile(Scene &scene, const std::string &filename);
 
 } // namespace CTX
