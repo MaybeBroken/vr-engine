@@ -11,6 +11,7 @@
 // Use OpenGL ES types for GPU handles
 #include <GLES3/gl3.h>
 #include "XrApp.h"
+#include "OVR_FileSys.h"
 
 namespace CTX
 {
@@ -96,6 +97,6 @@ namespace CTX
 
     // Utility: simple OBJ-like loader (minimal support) that returns a Node with mesh attached.
     Node::Ptr LoadModelAsNode(Scene &scene, const std::string &objData, const std::string &name = "model");
-    Node::Ptr LoadMeshFromFile(Scene &scene, const std::string &filename);
+    Node::Ptr LoadMeshFromFile(Scene &scene, OVRFW::ovrFileSys &fileSys, const std::string &filename);
 
 } // namespace CTX

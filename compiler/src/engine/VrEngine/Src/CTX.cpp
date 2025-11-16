@@ -9,23 +9,21 @@
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <fstream>
+#include "OVR_FileSys.h"
 
 namespace CTX
 {
 
     // load mesh data from a file on the disk into the provided scene
-    Node::Ptr LoadMeshFromFile(Scene &scene, const std::string &filename)
+    Node::Ptr LoadMeshFromFile(Scene &scene, OVRFW::ovrFileSys &fileSys, const std::string &filename)
     {
-        std::ifstream in(filename, std::ios::binary);
-        if (!in)
+        std::vector<uint8_t> buffer;
+        if (!fileSys.ReadFile(filename, buffer))
         {
-            ALOG("Failed to open mesh file: %s", filename.c_str());
+            ALOGW("Failed to load model uri '%s'", filename.c_str());
             return nullptr;
         }
-        std::ostringstream ss;
-        ss << in.rdbuf();
-        std::string contents = ss.str();
-        return LoadModelAsNode(scene, contents, filename);
+        return LoadModelAsNode(scene, buffer, filename.substr(filename.find_last_of("/\\") + 1));
     }
 
     std::shared_ptr<Mesh> Scene::LoadMeshFromMemory(const void *data, size_t size, const std::string &name)

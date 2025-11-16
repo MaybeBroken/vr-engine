@@ -28,7 +28,6 @@ file(GLOB_RECURSE SRC_FILES
 if(ANDROID)
     add_library(${PROJECT_NAME} MODULE ${SRC_FILES})
     target_include_directories(${PROJECT_NAME} PUBLIC ${ANDROID_NDK}/sources/android/native_app_glue)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -fno-typed-cxx-new-delete")
     target_link_libraries(${PROJECT_NAME} PRIVATE
         android
         EGL

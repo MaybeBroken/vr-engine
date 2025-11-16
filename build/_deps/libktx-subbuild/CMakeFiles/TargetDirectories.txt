@@ -1,0 +1,3 @@
+C:/Users/david/git/vr-engine/build/_deps/libktx-subbuild/CMakeFiles/libktx-populate.dir
+C:/Users/david/git/vr-engine/build/_deps/libktx-subbuild/CMakeFiles/ALL_BUILD.dir
+C:/Users/david/git/vr-engine/build/_deps/libktx-subbuild/CMakeFiles/ZERO_CHECK.dir
