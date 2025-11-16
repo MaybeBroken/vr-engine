@@ -99,6 +99,12 @@ namespace CTX
         }
         void Shutdown() override
         {
+            if (program != 0)
+            {
+                glDeleteProgram(program);
+                program = 0;
+            }
+            programReady = false;
             inited = false;
         }
         void RenderScene(const Scene &scene, const OVR::Matrix4f &view, const OVR::Matrix4f &proj) override
@@ -114,12 +120,14 @@ namespace CTX
 
             // Set projection+view uniforms
             glUseProgram(program);
-            GLint locView = glGetUniformLocation(program, "uView");
-            GLint locProj = glGetUniformLocation(program, "uProj");
-            if (locView >= 0)
-                glUniformMatrix4fv(locView, 1, GL_FALSE, &view.M[0][0]);
-            if (locProj >= 0)
-                glUniformMatrix4fv(locProj, 1, GL_FALSE, &proj.M[0][0]);
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+            glDisable(GL_CULL_FACE);
+            if (locView_ >= 0)
+                glUniformMatrix4fv(locView_, 1, GL_TRUE, &view.M[0][0]);
+            if (locProj_ >= 0)
+                glUniformMatrix4fv(locProj_, 1, GL_TRUE, &proj.M[0][0]);
 
             for (const auto &root : scene.roots)
             {
@@ -131,6 +139,9 @@ namespace CTX
         bool inited;
         GLuint program = 0;
         bool programReady = false;
+        GLint locModel_ = -1;
+        GLint locView_ = -1;
+        GLint locProj_ = -1;
 
         bool InitProgram()
         {
@@ -155,6 +166,10 @@ namespace CTX
             glDeleteShader(vsId);
             glDeleteShader(fsId);
             programReady = true;
+            glUseProgram(program);
+            locModel_ = glGetUniformLocation(program, "uModel");
+            locView_ = glGetUniformLocation(program, "uView");
+            locProj_ = glGetUniformLocation(program, "uProj");
             return programReady;
         }
 
@@ -178,16 +193,11 @@ namespace CTX
         }
         void RenderNodeRecursive(const Node *node, const OVR::Matrix4f &parent)
         {
-            OVR::Matrix4f t = parent;
-            // Apply translation
+            // Compose model matrix = parent * T * R * S
             OVR::Matrix4f trans(node->transform.translation);
-            // Apply rotation
-            OVR::Matrix4f rot(OVR::Matrix4f(node->transform.rotation));
-            // Apply scale
+            OVR::Matrix4f rot(node->transform.rotation);
             OVR::Matrix4f scale = OVR::Matrix4f::Scaling(node->transform.scale);
-            t *= rot;
-            t *= scale;
-            t.SetTranslation(node->transform.translation);
+            OVR::Matrix4f t = parent * trans * rot * scale;
             // Ensure mesh is uploaded
             if (node->mesh)
             {
@@ -195,11 +205,17 @@ namespace CTX
                 if (node->mesh->vao != 0)
                 {
                     glUseProgram(program);
-                    GLint locModel = glGetUniformLocation(program, "uModel");
-                    if (locModel >= 0)
-                        glUniformMatrix4fv(locModel, 1, GL_FALSE, &t.M[0][0]);
+                    if (locModel_ >= 0)
+                        glUniformMatrix4fv(locModel_, 1, GL_TRUE, &t.M[0][0]);
                     glBindVertexArray(node->mesh->vao);
-                    glDrawElements(GL_TRIANGLES, (GLsizei)node->mesh->indices.size(), GL_UNSIGNED_INT, 0);
+                    if (!node->mesh->indices.empty())
+                    {
+                        glDrawElements(GL_TRIANGLES, (GLsizei)node->mesh->indices.size(), GL_UNSIGNED_INT, 0);
+                    }
+                    else
+                    {
+                        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(node->mesh->vertices.size() / 3));
+                    }
                     glBindVertexArray(0);
                 }
             }

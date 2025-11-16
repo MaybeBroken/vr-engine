@@ -31,7 +31,7 @@ public:
     // CLASS_INIT_ENTRY
     VrEngine() : OVRFW::XrApp()
     {
-        BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 1.0f);
+        BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 0.0f);
         OpenXRVersion = XR_API_VERSION_1_1;
         // create ctx objects
         scene_ = std::make_unique<CTX::Scene>();
@@ -67,12 +67,14 @@ public:
         if (fileSys)
         {
             std::string cubeModelPath = "apk:///assets/cube.obj";
-            model = CTX::LoadMeshFromFile(*scene_, *fileSys, cubeModelPath);
-        }
-        if (!model)
-        {
-            ALOG("AppInit::LoadMeshFromFile FAILED.");
-            return false;
+            auto model = CTX::LoadMeshFromFile(*scene_, *fileSys, cubeModelPath);
+            if (!model)
+            {
+                ALOG("AppInit::LoadMeshFromFile FAILED for %s", cubeModelPath.c_str());
+                return false;
+            }
+            this->model = model;
+            model->transform.scale = OVR::Vector3f(0.1f);
         }
 
         // APP_INIT_MOD_EXIT
@@ -164,15 +166,7 @@ public:
         {
             controllerRenderR_.Render(out.Surfaces);
         }
-        // Example: call CTX renderer for each eye using provided view/projection
-        if (renderer_)
-        {
-            // The real XrApp provides view/proj per eye; here we use a simple identity
-            // as a placeholder. Integrate with real per-eye matrices in production.
-            OVR::Matrix4f view = OVR::Matrix4f::Identity();
-            OVR::Matrix4f proj = OVR::Matrix4f::Identity();
-            renderer_->RenderScene(*scene_, view, proj);
-        }
+        // CTX rendering occurs in AppEyeGLStateSetup when the eye FBO is bound.
         // RENDER_MOD_EXIT
     }
     // Called by the framework when GL state for an eye is bound (framebuffer set).
@@ -188,6 +182,7 @@ public:
             // in.Eye[eye].ViewMatrix and in.Eye[eye].ProjectionMatrix hold OVR::Matrix4f
             OVR::Matrix4f view = in.Eye[eye].ViewMatrix;
             OVR::Matrix4f proj = in.Eye[eye].ProjectionMatrix;
+            ALOGV("AppEyeGLStateSetup: drawing CTX for eye %d", eye);
             renderer_->RenderScene(*scene_, view, proj);
         }
     }
