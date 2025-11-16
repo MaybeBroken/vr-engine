@@ -18,12 +18,14 @@ namespace CTX
     Node::Ptr LoadMeshFromFile(Scene &scene, OVRFW::ovrFileSys &fileSys, const std::string &filename)
     {
         std::vector<uint8_t> buffer;
-        if (!fileSys.ReadFile(filename, buffer))
+        if (!fileSys.ReadFile(filename.c_str(), buffer))
         {
             ALOGW("Failed to load model uri '%s'", filename.c_str());
             return nullptr;
         }
-        return LoadModelAsNode(scene, buffer, filename.substr(filename.find_last_of("/\\") + 1));
+        // Convert raw bytes to an ASCII string for the simple OBJ-like parser
+        const std::string objData(reinterpret_cast<const char *>(buffer.data()), buffer.size());
+        return LoadModelAsNode(scene, objData, filename.substr(filename.find_last_of("/\\") + 1));
     }
 
     std::shared_ptr<Mesh> Scene::LoadMeshFromMemory(const void *data, size_t size, const std::string &name)
