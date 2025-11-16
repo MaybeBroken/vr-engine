@@ -33,9 +33,8 @@ public:
     {
         BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 0.0f);
         OpenXRVersion = XR_API_VERSION_1_1;
-        // create ctx objects
-        scene_ = std::make_unique<CTX::Scene>();
-        renderer_ = CTX::CreateOpenGLRenderer();
+        // CTX abstraction context
+        ctx_ = std::make_unique<CTX::Context>();
     }
     // CLASS_INIT_EXIT
 
@@ -53,28 +52,18 @@ public:
     // APP_EXTENSIONS_EXIT
 
     // APP_INIT_ENTRY
-    // Must return true if the application initializes successfully.
     virtual bool AppInit(const xrJava *context) override
     {
         // APP_INIT_MOD_ENTRY
 
-        // Initialize renderer-level resources that are independent of session
-        if (renderer_)
-        {
-            renderer_->Initialize();
-        }
+        std::string glbPath = "apk:///assets/Room.glb";
         auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
         if (fileSys)
         {
-            std::string cubeModelPath = "apk:///assets/cube.obj";
-            auto model = CTX::LoadMeshFromFile(*scene_, *fileSys, cubeModelPath);
-            if (!model)
-            {
-                ALOG("AppInit::LoadMeshFromFile FAILED for %s", cubeModelPath.c_str());
-                return false;
-            }
-            this->model = model;
-            model->transform.scale = OVR::Vector3f(0.1f);
+            CTX::Model &m = ctx_->LoadModel(*fileSys, glbPath);
+            m.setPos(0.0f, 0.0f, -2.0f);
+            m.setScale(20.0f);
+            m.setHpr(0.0f, 0.0f, 0.0f);
         }
 
         // APP_INIT_MOD_EXIT
@@ -86,12 +75,7 @@ public:
     virtual void AppShutdown(const xrJava *context) override
     {
         // APP_SHUTDOWN_MOD_ENTRY
-        if (renderer_)
-        {
-            renderer_->Shutdown();
-            renderer_.reset();
-        }
-        scene_.reset();
+        ctx_.reset();
         OVRFW::XrApp::AppShutdown(context);
         // APP_SHUTDOWN_MOD_EXIT
     }
@@ -114,8 +98,7 @@ public:
             ALOG("AppInit::Init R controller renderer FAILED.");
             return false;
         }
-        // Load a simple cube model into the CTX scene
-        scene_->roots.push_back(model);
+        // Nothing to push; glb surfaces will be emitted during Render.
 
         // Session-specific renderer setup can go here if needed.
         return true;
@@ -129,7 +112,6 @@ public:
         // SESSION_END_MOD_ENTRY
         controllerRenderL_.Shutdown();
         controllerRenderR_.Shutdown();
-        // leave renderer running across sessions if desired; otherwise shutdown here
         // SESSION_END_MOD_EXIT
     }
     // SESSION_END_EXIT
@@ -151,8 +133,6 @@ public:
         // UPDATE_MOD_EXIT
     }
     // UPDATE_EXIT
-
-    // Render eye buffers while running
     // RENDER_ENTRY
     virtual void Render(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override
     {
@@ -166,25 +146,11 @@ public:
         {
             controllerRenderR_.Render(out.Surfaces);
         }
-        // CTX rendering occurs in AppEyeGLStateSetup when the eye FBO is bound.
-        // RENDER_MOD_EXIT
-    }
-    // Called by the framework when GL state for an eye is bound (framebuffer set).
-    // We render the CTX scene here so we draw directly into the XR-provided swapchain image.
-    virtual void AppEyeGLStateSetup(const OVRFW::ovrApplFrameIn &in, const ovrFramebuffer *fb, int eye) override
-    {
-        // Call base GL state setup first (viewport, scissor, clear)
-        OVRFW::XrApp::AppEyeGLStateSetup(in, fb, eye);
-
-        if (renderer_)
+        if (ctx_)
         {
-            // Use the per-eye view/projection matrices already computed by the framework.
-            // in.Eye[eye].ViewMatrix and in.Eye[eye].ProjectionMatrix hold OVR::Matrix4f
-            OVR::Matrix4f view = in.Eye[eye].ViewMatrix;
-            OVR::Matrix4f proj = in.Eye[eye].ProjectionMatrix;
-            ALOGV("AppEyeGLStateSetup: drawing CTX for eye %d", eye);
-            renderer_->RenderScene(*scene_, view, proj);
+            ctx_->RenderAll(out.Surfaces);
         }
+        // RENDER_MOD_EXIT
     }
     // RENDER_EXIT
     // PUBLIC_EXIT
@@ -193,9 +159,7 @@ private:
     // PRIVATE_ENTRY
     OVRFW::ControllerRenderer controllerRenderL_;
     OVRFW::ControllerRenderer controllerRenderR_;
-    std::unique_ptr<CTX::Scene> scene_;
-    std::unique_ptr<CTX::Renderer> renderer_;
-    CTX::Node::Ptr model;
+    std::unique_ptr<CTX::Context> ctx_;
 
     // PRIVATE_EXIT
 };
