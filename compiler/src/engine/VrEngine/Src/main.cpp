@@ -62,7 +62,7 @@ public:
         {
             CTX::Model &m = ctx_->LoadModel(*fileSys, glbPath);
             m.setPos(0.0f, 0.0f, -2.0f);
-            m.setScale(1.0f);
+            m.setScale(0.5f);
             m.setHpr(0.0f, 0.0f, 0.0f);
         }
 
