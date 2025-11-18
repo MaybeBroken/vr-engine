@@ -33,7 +33,6 @@ public:
     {
         BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 0.0f);
         OpenXRVersion = XR_API_VERSION_1_1;
-        // CTX abstraction context
         ctx_ = std::make_unique<CTX::Context>();
     }
     // CLASS_INIT_EXIT
@@ -44,8 +43,7 @@ public:
     {
         std::vector<const char *> extensions = XrApp::GetExtensions();
         // APP_EXTENSIONS_MOD_ENTRY
-        // Expose common Meta/OpenXR extension names here if needed by CTX.
-        // The project may require additional extensions; keep XrApp defaults.
+
         // APP_EXTENSIONS_MOD_EXIT
         return extensions;
     }
@@ -56,7 +54,7 @@ public:
     {
         // APP_INIT_MOD_ENTRY
 
-        std::string glbPath = "apk:///assets/Room.glb";
+        std::string glbPath = "apk:///assets/TestCube.glb";
         auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
         if (fileSys)
         {
