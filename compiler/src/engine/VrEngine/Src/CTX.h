@@ -20,7 +20,7 @@ namespace CTX
         bool load(OVRFW::ovrFileSys &fs, const std::string &uri);
         void setPos(float x, float y, float z)
         {
-            pos_ = OVR::Vector3f(x, y, z);
+            pos_ = OVR::Vector3f(0.0f - x, 0.0f - y, 0.0f - z);
             dirty_ = true;
         }
         void setScale(float s);

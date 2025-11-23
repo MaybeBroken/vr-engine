@@ -31,7 +31,7 @@ public:
     // CLASS_INIT_ENTRY
     VrEngine() : OVRFW::XrApp()
     {
-        BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 0.0f);
+        BackgroundColor = OVR::Vector4f(0.00f, 0.1f, 0.9f, 1.0f);
         OpenXRVersion = XR_API_VERSION_1_1;
         ctx_ = std::make_unique<CTX::Context>();
     }
@@ -54,13 +54,13 @@ public:
     {
         // APP_INIT_MOD_ENTRY
 
-        std::string glbPath = "apk:///assets/TestCube.glb";
+        std::string glbPath = "apk:///assets/space16k.glb";
         auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
         if (fileSys)
         {
             CTX::Model &m = ctx_->LoadModel(*fileSys, glbPath);
-            m.setPos(0.0f, 0.0f, -2.0f);
-            m.setScale(0.5f);
+            m.setPos(0.0f, 1.2f, 0.0f);
+            m.setScale(1.0f);
             m.setHpr(0.0f, 0.0f, 0.0f);
         }
 
