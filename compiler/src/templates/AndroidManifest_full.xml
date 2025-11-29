@@ -1,20 +1,32 @@
   <!-- Tell the system this app requires OpenGL ES 3.1. -->
-<uses-feature
-  android:glEsVersion="0x00030001"
-  android:required="true"
-/>
-<uses-feature
-  android:name="android.hardware.vr.headtracking"
-  android:required="true"
-/>
-<uses-feature
-  android:name="com.oculus.experimental.enabled"
-  android:required="true"
-/>
+<uses-feature android:glEsVersion="0x00030001" android:required="true" />
+<!-- Use headtracking -->
+<uses-feature android:name="android.hardware.vr.headtracking" />
+<!-- allow experimental Oculus features -->
+<uses-feature android:name="com.oculus.experimental.enabled" />
 <!-- Tell the system this app can handle tracked remotes and hands -->
 <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
-<uses-feature
-  android:name="oculus.software.handtracking"
-  android:required="false"
-/>
+<uses-feature android:name="oculus.software.handtracking" />
+<!-- Volume Control -->
+<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<!-- Internet Access -->
+<uses-permission android:name="android.permission.INTERNET" />
+<!-- Access to External Storage -->
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<!-- Access Network State -->
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<!-- Allows to access TrackingEnvironment functionality -->
+<uses-permission android:name="com.oculus.permission.ACCESS_TRACKING_ENV" />
+<!-- Grants access to Passthrough API. -->
+<uses-feature android:name="com.oculus.feature.PASSTHROUGH" />
+<!-- Request permission to use Scene -->
+<uses-permission android:name="com.oculus.permission.USE_SCENE" />
+<!-- Enable report events to Telemetry Service -->
+<uses-permission android:name="com.oculus.permission.REPORT_EVENTS" />
+<uses-permission android:name="com.oculus.permission.REPORT_EVENTS_DEBUG" />
+<!-- Grants access to Spatial Anchors. -->
+<uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
+<!-- Grants access to Shared Spatial Anchors. -->
+<uses-permission android:name="com.oculus.permission.IMPORT_EXPORT_IOT_MAP_DATA" />
+
 <!--INJECT_END-->

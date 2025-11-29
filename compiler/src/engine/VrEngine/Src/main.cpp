@@ -54,16 +54,6 @@ public:
     {
         // APP_INIT_MOD_ENTRY
 
-        std::string glbPath = "apk:///assets/space16k.glb";
-        auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
-        if (fileSys)
-        {
-            CTX::Model &m = ctx_->LoadModel(*fileSys, glbPath);
-            m.setPos(0.0f, 1.2f, 0.0f);
-            m.setScale(1.0f);
-            m.setHpr(0.0f, 0.0f, 0.0f);
-        }
-
         // APP_INIT_MOD_EXIT
         return true;
     }

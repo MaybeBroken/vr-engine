@@ -1,0 +1,15 @@
+  <!-- Tell the system this app requires OpenGL ES 3.1. -->
+<uses-feature android:glEsVersion="0x00030001" android:required="true" />
+<!-- Use headtracking -->
+<uses-feature android:name="android.hardware.vr.headtracking" />
+<!-- allow experimental Oculus features -->
+<uses-feature android:name="com.oculus.experimental.enabled" />
+<!-- Tell the system this app can handle tracked remotes and hands -->
+<uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+<uses-feature android:name="oculus.software.handtracking" />
+<!-- Allows to access TrackingEnvironment functionality -->
+<uses-permission android:name="com.oculus.permission.ACCESS_TRACKING_ENV" />
+<!-- Grants access to Passthrough API. -->
+<uses-feature android:name="com.oculus.feature.PASSTHROUGH" />
+
+<!--INJECT_END-->
