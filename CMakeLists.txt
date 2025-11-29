@@ -19,6 +19,10 @@ cmake_minimum_required(VERSION 3.10.2)
 project(MetaOpenXRSDK C CXX)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+# Use LLVM versions instead of broken arch-specific tools
+set(CMAKE_AR "${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar")
+set(CMAKE_RANLIB "${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
