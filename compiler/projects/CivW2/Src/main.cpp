@@ -19,25 +19,22 @@
 // "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
 // "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
 
-// Example injection project:
+#app_init> w
+virtual bool AppInit(const xrJava *context) override
+{
+    // APP_INIT_MOD_ENTRY
+    auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
 
-// #INCLUDES> w
-// #include <iostream>
-// #end
+    std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
+    if (fileSys)
+    {
+        CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
+        heightmapModel.setPos(0.0f, 1.0f, 0.0f);
+        heightmapModel.setScale(1.0f);
+        heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
+    }
 
-// #VAR_SPACE> w
-// // Example variable injection
-// int exampleVariable = 42;
-// #end
-
-// #CLASS> w
-// // Example class injection
-// class VrEngine
-// { // Note: class name must match the base engine class name, which is always VrEngine
-// public:
-//     void exampleMethod()
-//     {
-//         std::cout << "Hello from VrEngine! exampleVariable: " << exampleVariable << std::endl;
-//     }
-// };
-// #end
+    // APP_INIT_MOD_EXIT
+    return true;
+}
+#end
