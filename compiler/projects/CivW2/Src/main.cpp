@@ -24,7 +24,6 @@ virtual bool AppInit(const xrJava *context) override
 {
     // APP_INIT_MOD_ENTRY
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
-
     std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
     if (fileSys)
     {
@@ -33,7 +32,6 @@ virtual bool AppInit(const xrJava *context) override
         heightmapModel.setScale(1.0f);
         heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
     }
-
     // APP_INIT_MOD_EXIT
     return true;
 }

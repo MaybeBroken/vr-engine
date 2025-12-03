@@ -18,6 +18,7 @@ namespace CTX
     public:
         Model() = default;
         bool load(OVRFW::ovrFileSys &fs, const std::string &uri);
+        // Position, rotation, and scale controls
         void setPos(float x, float y, float z)
         {
             pos_ = OVR::Vector3f(0.0f - x, 0.0f - y, 0.0f - z);
@@ -28,6 +29,9 @@ namespace CTX
         bool isLoaded() const { return modelFile_ != nullptr; }
         void updatePose();
         void emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces);
+        // Passthrough helpers
+        void setOpacity(float o) { opacity_ = o; dirty_ = true; }
+        void setAlphaBlend(float a) { alphaBlend_ = a; dirty_ = true; }
 
     private:
         std::unique_ptr<OVRFW::ModelFile> modelFile_;
@@ -57,6 +61,25 @@ namespace CTX
             models_.back().load(fs, uri);
             return models_.back();
         }
+        // Enable a simple passthrough-friendly mode by ensuring alpha blending
+        // is active and model opacity/alpha allow camera feed to show through.
+        void EnablePassthrough(bool enable)
+        {
+            passthroughEnabled_ = enable;
+            for (auto &m : models_)
+            {
+                if (enable)
+                {
+                    m.setAlphaBlend(1.0f);
+                    m.setOpacity(1.0f);
+                }
+                else
+                {
+                    m.setAlphaBlend(1.0f);
+                    m.setOpacity(1.0f);
+                }
+            }
+        }
         void RenderAll(std::vector<OVRFW::ovrDrawSurface> &surfaces)
         {
             for (auto &m : models_)
@@ -73,6 +96,7 @@ namespace CTX
     private:
         std::vector<Model> models_;
         OVR::Matrix4f modelMatrix_;
+        bool passthroughEnabled_ = false;
     };
 
 } // namespace CTX
