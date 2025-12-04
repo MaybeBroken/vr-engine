@@ -9,7 +9,6 @@
 #include "Model/ModelFile.h"
 #include "Render/GlProgram.h"
 #include "Render/GlBuffer.h"
-#include <openxr/openxr.h>
 
 namespace CTX
 {
@@ -64,20 +63,6 @@ namespace CTX
     class Context
     {
     public:
-        // Initialize passthrough resources (XR_FB_passthrough) if extension is enabled.
-        void InitPassthrough(XrInstance instance, XrSession session, const std::vector<const char *>& enabledExts);
-        // Shutdown passthrough resources.
-        void ShutdownPassthrough(XrInstance instance);
-        // Enable room/scene mesh visualization using scene understanding.
-        void EnableRoomViews(XrInstance instance, XrSession session, bool enable);
-        // Enable simple hand joint visualization
-        void EnableHandViews(XrInstance instance, XrSession session, bool enable);
-        // Update hand joint buffers per-frame
-        void UpdateHands(XrInstance instance, XrSession session, XrSpace baseSpace, XrTime time);
-        // Status getters for UI
-        bool IsPassthroughActive() const { return xrPassthroughLayer_ != XR_NULL_HANDLE || xrPassthrough_ != XR_NULL_HANDLE; }
-        bool IsRoomViewsEnabled() const { return roomViewsEnabled_; }
-        bool IsHandViewsEnabled() const { return handViewsEnabled_; }
         Model &LoadModel(OVRFW::ovrFileSys &fs, const std::string &uri)
         {
             models_.emplace_back();
@@ -122,29 +107,6 @@ namespace CTX
         std::vector<Model> models_;
         OVR::Matrix4f modelMatrix_;
         bool passthroughEnabled_ = false;
-        // XR_FB_passthrough handles
-        XrPassthroughFB xrPassthrough_ = XR_NULL_HANDLE;
-        XrPassthroughLayerFB xrPassthroughLayer_ = XR_NULL_HANDLE;
-        // Scene understanding state
-        bool roomViewsEnabled_ = false;
-        // Simple buffers to render scene meshes
-        struct SceneMeshBuffers {
-            std::unique_ptr<OVRFW::GlBuffer> vbo;
-            std::unique_ptr<OVRFW::GlBuffer> ibo;
-            int indexCount = 0;
-            OVRFW::GlProgram prog;
-            OVRFW::ovrSurfaceDef surfaceDef;
-        };
-        std::vector<SceneMeshBuffers> sceneMeshes_;
-        // Hand tracking state
-        bool handViewsEnabled_ = false;
-        XrHandTrackerEXT handTrackerL_ = XR_NULL_HANDLE;
-        XrHandTrackerEXT handTrackerR_ = XR_NULL_HANDLE;
-        std::unique_ptr<OVRFW::GlBuffer> handVbo_;
-        std::unique_ptr<OVRFW::GlBuffer> handIbo_;
-        int handIndexCount_ = 0;
-        OVRFW::GlProgram handProg_;
-        OVRFW::ovrSurfaceDef handSurfaceDef_;
     };
 
 } // namespace CTX

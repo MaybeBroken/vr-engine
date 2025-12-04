@@ -1,37 +1,18 @@
-  <!-- Tell the system this app requires OpenGL ES 3.1. -->
-<uses-feature
-  android:glEsVersion="0x00030001"
-  android:required="true"
-/>
-<uses-feature
-  android:name="android.hardware.vr.headtracking"
-  android:required="true"
-/>
-<uses-feature
-  android:name="com.oculus.experimental.enabled"
-  android:required="true"
-/>
-<!-- Mixed Reality scene/anchors (optional, for room meshes) -->
-<uses-feature
-  android:name="com.oculus.feature.SCENE"
-  android:required="false"
-/>
-<uses-permission android:name="com.oculus.permission.USE_SCENE" />
-<uses-permission android:name="com.oculus.permission.SPATIAL_ANCHORS" />
-<!-- Passthrough feature/permission for Meta Quest runtimes -->
-<uses-feature
-  android:name="com.oculus.feature.PASSTHROUGH"
-  android:required="false"
-/>
-<uses-permission android:name="com.oculus.permission.PASSTHROUGH" />
+<!-- Tell the system this app requires OpenGL ES 3.1. -->
+<uses-feature android:glEsVersion="0x00030001" android:required="true" />
+<!-- Use headtracking -->
+<uses-feature android:name="android.hardware.vr.headtracking" />
+<!-- allow experimental Oculus features -->
+<uses-feature android:name="com.oculus.experimental.enabled" />
 <!-- Tell the system this app can handle tracked remotes and hands -->
 <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
 <uses-feature
   android:name="oculus.software.handtracking"
   android:required="false"
 />
-<!-- Hand tracking via OpenXR EXT_hand_tracking -->
+<!-- Grants access to Passthrough API. -->
 <uses-feature
-  android:name="com.oculus.feature.HAND_TRACKING"
+  android:name="com.oculus.feature.PASSTHROUGH"
   android:required="false"
 />
+<uses-permission android:name="com.oculus.permission.PASSTHROUGH" />
