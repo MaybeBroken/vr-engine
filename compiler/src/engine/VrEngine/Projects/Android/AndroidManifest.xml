@@ -20,6 +20,13 @@
     android:name="com.oculus.experimental.enabled"
     android:required="true"
   />
+  <!-- Mixed Reality scene/anchors (optional, for room meshes) -->
+  <uses-feature
+    android:name="com.oculus.feature.SCENE"
+    android:required="false"
+  />
+  <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+  <uses-permission android:name="com.oculus.permission.SPATIAL_ANCHORS" />
   <!-- Passthrough feature/permission for Meta Quest runtimes -->
   <uses-feature
     android:name="com.oculus.feature.PASSTHROUGH"
@@ -30,6 +37,11 @@
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
   <uses-feature
     android:name="oculus.software.handtracking"
+    android:required="false"
+  />
+  <!-- Hand tracking via OpenXR EXT_hand_tracking -->
+  <uses-feature
+    android:name="com.oculus.feature.HAND_TRACKING"
     android:required="false"
   />
   <!--INJECT_END-->
