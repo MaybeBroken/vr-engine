@@ -1,6 +1,4 @@
 // CTX.h - abstraction layer for loading, controlling, and rendering glb models
-#pragma once
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -11,6 +9,8 @@
 #include "Model/ModelFile.h"
 #include "Render/GlProgram.h"
 #include "Render/GlBuffer.h"
+// Ensure GLuint type is available for texture IDs
+#include <GLES3/gl3.h>
 
 namespace CTX
 {
@@ -60,6 +60,23 @@ namespace CTX
             alphaBlend_ = a;
             dirty_ = true;
         }
+        // Environment depth occlusion controls
+        void setEnvironmentDepthTexture(GLuint glTex)
+        {
+            envDepthTex_ = glTex;
+            dirty_ = true;
+        }
+        void setEnvironmentDepthEnabled(bool enabled)
+        {
+            envDepthEnabled_ = enabled ? 1.0f : 0.0f;
+            dirty_ = true;
+        }
+        void setEnvironmentDepthRange(float nearMeters, float farMeters)
+        {
+            depthNear_ = nearMeters;
+            depthFar_ = farMeters;
+            dirty_ = true;
+        }
 
     private:
         std::unique_ptr<OVRFW::ModelFile> modelFile_;
@@ -71,6 +88,11 @@ namespace CTX
         OVR::Vector3f ambientColor_{1.0f, 1.0f, 1.0f};
         float opacity_ = 1.0f;
         float alphaBlend_ = 1.0f;
+        // environment depth
+        GLuint envDepthTex_ = 0;
+        float envDepthEnabled_ = 0.0f;
+        float depthNear_ = 0.1f;
+        float depthFar_ = 10.0f;
         // transforms
         OVR::Matrix4f transform_{};
         std::vector<uint8_t> glbBuffer_;

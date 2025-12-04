@@ -63,6 +63,11 @@ namespace CTX
     uniform sampler2D Texture0;
     uniform lowp vec3 SpecularLightDirection;
     uniform lowp vec3 SpecularLightColor;
+    // Environment depth-based occlusion controls
+    uniform sampler2D EnvironmentDepthTex; // depth texture (meters or normalized)
+    uniform lowp float EnvironmentDepthEnabled; // 0.0 disabled, >0 enabled
+    uniform lowp float DepthNear; // near plane in meters
+    uniform lowp float DepthFar;  // far plane in meters
     uniform lowp vec3 AmbientLightColor;
     uniform float Opacity;
     uniform float AlphaBlend;
@@ -98,6 +103,19 @@ namespace CTX
         lowp float nDotH = max( dot( Normal, H ), 0.0 );
         lowp float specularIntensity = pow( nDotH, 64.0f * ( specularPower ) ) * specularPower;
         lowp vec3 specularValue = specularIntensity * SpecularLightColor;
+
+        // Depth-based occlusion: compare fragment depth vs environment depth
+        if (EnvironmentDepthEnabled > 0.5) {
+            // Linearize device depth from gl_FragCoord.z to meters
+            highp float ndcZ = gl_FragCoord.z * 2.0 - 1.0;
+            highp float fragDepthMeters = (2.0 * DepthNear * DepthFar) / (DepthFar + DepthNear - ndcZ * (DepthFar - DepthNear));
+            // Sample environment depth from R channel
+            highp float envDepthMeters = texture2D(EnvironmentDepthTex, oTexCoord).r;
+            // Discard fragments farther than real geometry
+            if (envDepthMeters > 0.0 && fragDepthMeters > envDepthMeters) {
+                discard;
+            }
+        }
 
         lowp vec3 controllerColor = diffuseValue + ambientValue + specularValue;
 
@@ -136,6 +154,10 @@ namespace CTX
             {"Texture0", OVRFW::ovrProgramParmType::TEXTURE_SAMPLED},
             {"SpecularLightDirection", OVRFW::ovrProgramParmType::FLOAT_VECTOR3},
             {"SpecularLightColor", OVRFW::ovrProgramParmType::FLOAT_VECTOR3},
+            {"EnvironmentDepthTex", OVRFW::ovrProgramParmType::TEXTURE_SAMPLED},
+            {"EnvironmentDepthEnabled", OVRFW::ovrProgramParmType::FLOAT},
+            {"DepthNear", OVRFW::ovrProgramParmType::FLOAT},
+            {"DepthFar", OVRFW::ovrProgramParmType::FLOAT},
             {"AmbientLightColor", OVRFW::ovrProgramParmType::FLOAT_VECTOR3},
             {"Opacity", OVRFW::ovrProgramParmType::FLOAT},
             {"AlphaBlend", OVRFW::ovrProgramParmType::FLOAT},
@@ -213,10 +235,15 @@ namespace CTX
                 gc.UniformData[0].Data = &gc.Textures[0];
                 gc.UniformData[1].Data = &specularDir_;
                 gc.UniformData[2].Data = &specularColor_;
-                gc.UniformData[3].Data = &ambientColor_;
-                gc.UniformData[4].Data = &opacity_;
-                gc.UniformData[5].Data = &alphaBlend_;
-                gc.UniformData[6].Data = jointsBuffer_.get();
+                // Bind environment depth uniforms to model state
+                gc.UniformData[3].Data = &gc.Textures[1];
+                gc.UniformData[4].Data = &envDepthEnabled_;
+                gc.UniformData[5].Data = &depthNear_;
+                gc.UniformData[6].Data = &depthFar_;
+                gc.UniformData[7].Data = &ambientColor_;
+                gc.UniformData[8].Data = &opacity_;
+                gc.UniformData[9].Data = &alphaBlend_;
+                gc.UniformData[10].Data = jointsBuffer_.get();
                 gc.GpuState.depthEnable = gc.GpuState.depthMaskEnable = true;
                 gc.GpuState.blendEnable = OVRFW::ovrGpuState::BLEND_ENABLE;
                 gc.GpuState.blendMode = OVRFW::ovrGpuState::kGL_FUNC_ADD;

@@ -16,6 +16,7 @@
 #include "Render/SimpleBeamRenderer.h"
 #include "CTX.h"
 #include "OVR_Math.h"
+#include "EnvironmentDepthProvider.h"
 
 // Hand tracking EXT typedefs
 typedef XrResult(XRAPI_PTR *PFN_xrCreateHandTrackerEXT)(XrSession session, const XrHandTrackerCreateInfoEXT *createInfo, XrHandTrackerEXT *handTracker);
@@ -85,6 +86,15 @@ public:
         if (hasHandTracking)
         {
             extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+        }
+
+        // Request environment depth (Meta Quest)
+        const bool hasEnvDepth = std::any_of(
+            props.begin(), props.end(), [](const XrExtensionProperties &p)
+            { return strcmp(p.extensionName, "XR_META_environment_depth") == 0; });
+        if (hasEnvDepth)
+        {
+            extensions.push_back("XR_META_environment_depth");
         }
 
         // APP_EXTENSIONS_MOD_EXIT
@@ -228,8 +238,16 @@ public:
             }
         }
 
+        // Initialize environment depth acquisition (Meta extension)
+        envDepthProvider_.Init(GetInstance(), GetSession());
+
         // Initialize hand tracking after session is ready
         InitHandTracking();
+
+        // Initialize environment depth range from current view configuration
+        // Use typical near/far; can be updated from projection matrices.
+        envDepthNear_ = 0.1f;
+        envDepthFar_ = 10.0f;
 
         // Session-specific renderer setup can go here if needed.
         return true;
@@ -296,6 +314,31 @@ public:
         }
         // Process hand tracking gestures
         UpdateHandTracking(in);
+
+        // Acquire environment depth; if valid, enable occlusion globally.
+        if (envDepthProvider_.AcquireAndUpload(in.PredictedDisplayTime))
+        {
+            // Bind on all models for now
+            if (ctx_)
+            {
+                for (auto &m : ctx_->Models())
+                {
+                    m.setEnvironmentDepthTexture(envDepthProvider_.GetTexture());
+                    m.setEnvironmentDepthEnabled(true);
+                    m.setEnvironmentDepthRange(envDepthProvider_.GetNearMeters(), envDepthProvider_.GetFarMeters());
+                }
+            }
+        }
+        else
+        {
+            if (ctx_)
+            {
+                for (auto &m : ctx_->Models())
+                {
+                    m.setEnvironmentDepthEnabled(false);
+                }
+            }
+        }
         // UPDATE_MOD_EXIT
     }
     // UPDATE_EXIT
@@ -376,6 +419,8 @@ private:
     XrPassthroughFB passthrough_ = XR_NULL_HANDLE;
     XrPassthroughLayerFB passthroughLayer_ = XR_NULL_HANDLE;
     bool passthroughActive_ = false;
+
+    EnvironmentDepthProvider envDepthProvider_{};
 
     // Hand tracking state
     PFN_xrCreateHandTrackerEXT pfnCreateHandTracker_ = nullptr;
