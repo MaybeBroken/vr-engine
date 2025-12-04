@@ -31,8 +31,84 @@ virtual bool AppInit(const xrJava *context) override
         heightmapModel.setPos(0.0f, 0.2f, 0.4f);
         heightmapModel.setScale(0.2f);
         heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
+
+        // Demo gesture bindings: single-finger pinch moves; two-finger pinch scales+rotates+moves
+        // Keep simple state for gesture processing
+        static bool leftActive = false;
+        static bool rightActive = false;
+        static OVR::Vector3f leftPos(0.0f), rightPos(0.0f);
+        static OVR::Vector3f lastCenter(0.0f);
+        static float lastDistance = 0.0f;
+        static float baseScale = 0.2f; // initial
+        static float baseHeadingDeg = 0.0f;
+
+        auto applyTransform = [&]()
+        {
+            // One-finger: move by left or right position deltas
+            if (leftActive ^ rightActive)
+            {
+                const OVR::Vector3f p = leftActive ? leftPos : rightPos;
+                // Map hand space movement directly to model position with small gain
+                OVR::Vector3f target = p;
+                const float gain = 0.5f;
+                heightmapModel.setPos(target.x * gain, target.y * gain + 0.2f, target.z * gain + 0.4f);
+            }
+            // Two-finger: scale, rotate heading, and move to center between fingers
+            else if (leftActive && rightActive)
+            {
+                OVR::Vector3f center = (leftPos + rightPos) * 0.5f;
+                float dist = (leftPos - rightPos).Length();
+                if (lastDistance > 0.0f)
+                {
+                    float scaleDelta = (dist - lastDistance);
+                    float newScale = std::max(0.05f, baseScale + scaleDelta);
+                    heightmapModel.setScale(newScale);
+                }
+                // Rotate around H axis based on horizontal vector between hands
+                OVR::Vector3f d = rightPos - leftPos;
+                float headingRad = atan2f(d.x, d.z);
+                float headingDeg = headingRad * (180.0f / MATH_FLOAT_PI);
+                heightmapModel.setHpr(baseHeadingDeg + headingDeg, 0.0f, 0.0f);
+
+                // Move to center with gain
+                const float moveGain = 0.5f;
+                heightmapModel.setPos(center.x * moveGain, center.y * moveGain + 0.2f, center.z * moveGain + 0.4f);
+
+                lastCenter = center;
+                lastDistance = dist;
+            }
+        };
+
+        // Bind pinch callbacks to update state and apply transforms
+        ctx_->Bind(CTX::Action::PinchLeft, [&](const CTX::ActionEvent &e)
+                   {
+            leftActive = e.active;
+            leftPos = e.position;
+            if (e.active && !(rightActive))
+            {
+                // reset two-finger baseline when transitioning to two-finger
+                lastDistance = 0.0f;
+            }
+            applyTransform(); });
+
+        ctx_->Bind(CTX::Action::PinchRight, [&](const CTX::ActionEvent &e)
+                   {
+            rightActive = e.active;
+            rightPos = e.position;
+            if (e.active && !(leftActive))
+            {
+                lastDistance = 0.0f;
+            }
+            applyTransform(); });
     }
     // APP_INIT_MOD_EXIT
     return true;
 }
 #end
+
+// #update> a
+// virtual void Update(const OVRFW::ovrApplFrameIn &in) override
+// {
+//     // No-op: transforms are applied inside bound callbacks in AppInit.
+// }
+// #end

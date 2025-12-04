@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
+#include <unordered_map>
 #include "OVR_Math.h"
 #include "OVR_FileSys.h"
 #include "Model/ModelFile.h"
@@ -12,6 +14,24 @@
 
 namespace CTX
 {
+    // Simple action types for binding from engine input/gestures
+    enum class Action
+    {
+        PinchLeft,
+        PinchRight,
+        ButtonA,
+        ButtonB,
+        SwipeLeft,
+        SwipeRight
+    };
+
+    struct ActionEvent
+    {
+        Action action;
+        float value;            // e.g., pinch strength [0..1]
+        OVR::Vector3f position; // world-space hint (optional)
+        bool active;            // true on press/gesture on, false on release
+    };
 
     class Model
     {
@@ -103,10 +123,31 @@ namespace CTX
         }
         std::vector<Model> &Models() { return models_; }
 
+        // Bind/unbind callbacks for actions
+        using Callback = std::function<void(const ActionEvent &)>;
+        void Bind(Action action, Callback cb)
+        {
+            callbacks_[action] = std::move(cb);
+        }
+        void Unbind(Action action)
+        {
+            callbacks_.erase(action);
+        }
+        // Trigger from engine
+        void Trigger(const ActionEvent &evt)
+        {
+            auto it = callbacks_.find(evt.action);
+            if (it != callbacks_.end() && it->second)
+            {
+                it->second(evt);
+            }
+        }
+
     private:
         std::vector<Model> models_;
         OVR::Matrix4f modelMatrix_;
         bool passthroughEnabled_ = false;
+        std::unordered_map<Action, Callback> callbacks_;
     };
 
 } // namespace CTX

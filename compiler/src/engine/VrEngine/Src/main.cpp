@@ -17,6 +17,11 @@
 #include "CTX.h"
 #include "OVR_Math.h"
 
+// Hand tracking EXT typedefs
+typedef XrResult(XRAPI_PTR *PFN_xrCreateHandTrackerEXT)(XrSession session, const XrHandTrackerCreateInfoEXT *createInfo, XrHandTrackerEXT *handTracker);
+typedef XrResult(XRAPI_PTR *PFN_xrDestroyHandTrackerEXT)(XrHandTrackerEXT handTracker);
+typedef XrResult(XRAPI_PTR *PFN_xrLocateHandJointsEXT)(XrHandTrackerEXT handTracker, const XrHandJointsLocateInfoEXT *locateInfo, XrHandJointLocationsEXT *locations);
+
 // OpenXR FB Passthrough function pointer typedefs
 typedef XrResult(XRAPI_PTR *PFN_xrCreatePassthroughFB)(XrSession session, const XrPassthroughCreateInfoFB *createInfo, XrPassthroughFB *passthrough);
 typedef XrResult(XRAPI_PTR *PFN_xrDestroyPassthroughFB)(XrPassthroughFB passthrough);
@@ -71,6 +76,15 @@ public:
         if (hasPassthrough)
         {
             extensions.push_back(XR_FB_PASSTHROUGH_EXTENSION_NAME);
+        }
+
+        // Request hand tracking if available
+        const bool hasHandTracking = std::any_of(
+            props.begin(), props.end(), [](const XrExtensionProperties &p)
+            { return strcmp(p.extensionName, XR_EXT_HAND_TRACKING_EXTENSION_NAME) == 0; });
+        if (hasHandTracking)
+        {
+            extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
         }
 
         // APP_EXTENSIONS_MOD_EXIT
@@ -214,6 +228,9 @@ public:
             }
         }
 
+        // Initialize hand tracking after session is ready
+        InitHandTracking();
+
         // Session-specific renderer setup can go here if needed.
         return true;
         // SESSION_INIT_MOD_EXIT
@@ -245,6 +262,20 @@ public:
             passthrough_ = XR_NULL_HANDLE;
             passthroughActive_ = false;
         }
+        // Destroy hand trackers
+        if (pfnDestroyHandTracker_)
+        {
+            if (leftHandTracker_ != XR_NULL_HANDLE)
+            {
+                pfnDestroyHandTracker_(leftHandTracker_);
+                leftHandTracker_ = XR_NULL_HANDLE;
+            }
+            if (rightHandTracker_ != XR_NULL_HANDLE)
+            {
+                pfnDestroyHandTracker_(rightHandTracker_);
+                rightHandTracker_ = XR_NULL_HANDLE;
+            }
+        }
         // SESSION_END_MOD_EXIT
     }
     // SESSION_END_EXIT
@@ -263,6 +294,8 @@ public:
         {
             controllerRenderR_.Update(in.RightRemotePose);
         }
+        // Process hand tracking gestures
+        UpdateHandTracking(in);
         // UPDATE_MOD_EXIT
     }
     // UPDATE_EXIT
@@ -343,6 +376,97 @@ private:
     XrPassthroughFB passthrough_ = XR_NULL_HANDLE;
     XrPassthroughLayerFB passthroughLayer_ = XR_NULL_HANDLE;
     bool passthroughActive_ = false;
+
+    // Hand tracking state
+    PFN_xrCreateHandTrackerEXT pfnCreateHandTracker_ = nullptr;
+    PFN_xrDestroyHandTrackerEXT pfnDestroyHandTracker_ = nullptr;
+    PFN_xrLocateHandJointsEXT pfnLocateHandJoints_ = nullptr;
+    XrHandTrackerEXT leftHandTracker_ = XR_NULL_HANDLE;
+    XrHandTrackerEXT rightHandTracker_ = XR_NULL_HANDLE;
+    bool handTrackingEnabled_ = false;
+    bool leftPinchActive_ = false;
+    bool rightPinchActive_ = false;
+
+    void InitHandTracking()
+    {
+        // Load function pointers
+        xrGetInstanceProcAddr(GetInstance(), "xrCreateHandTrackerEXT", (PFN_xrVoidFunction *)&pfnCreateHandTracker_);
+        xrGetInstanceProcAddr(GetInstance(), "xrDestroyHandTrackerEXT", (PFN_xrVoidFunction *)&pfnDestroyHandTracker_);
+        xrGetInstanceProcAddr(GetInstance(), "xrLocateHandJointsEXT", (PFN_xrVoidFunction *)&pfnLocateHandJoints_);
+        if (!pfnCreateHandTracker_ || !pfnLocateHandJoints_)
+            return;
+
+        XrHandTrackerCreateInfoEXT ci{XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT};
+        ci.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+        ci.next = nullptr;
+        ci.hand = XR_HAND_LEFT_EXT;
+        if (pfnCreateHandTracker_(GetSession(), &ci, &leftHandTracker_) == XR_SUCCESS)
+        {
+            handTrackingEnabled_ = true;
+        }
+        ci.hand = XR_HAND_RIGHT_EXT;
+        if (pfnCreateHandTracker_(GetSession(), &ci, &rightHandTracker_) == XR_SUCCESS)
+        {
+            handTrackingEnabled_ = true;
+        }
+    }
+
+    void UpdateHandTracking(const OVRFW::ovrApplFrameIn &in)
+    {
+        if (!handTrackingEnabled_ || !pfnLocateHandJoints_)
+            return;
+
+        auto process = [&](XrHandTrackerEXT tracker, CTX::Action action, bool &activeFlag)
+        {
+            if (tracker == XR_NULL_HANDLE)
+                return;
+            XrHandJointsLocateInfoEXT li{XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
+            li.baseSpace = CurrentSpace;
+            li.time = in.PredictedDisplayTime;
+            XrHandJointLocationsEXT locs{XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+            XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+            locs.jointCount = XR_HAND_JOINT_COUNT_EXT;
+            locs.jointLocations = joints;
+            if (pfnLocateHandJoints_(tracker, &li, &locs) != XR_SUCCESS || !locs.isActive)
+            {
+                if (activeFlag)
+                {
+                    TriggerPinch(action, 0.0f, OVR::Vector3f(0.0f), false);
+                    activeFlag = false;
+                }
+                return;
+            }
+            const auto &thumb = joints[XR_HAND_JOINT_THUMB_TIP_EXT];
+            const auto &index = joints[XR_HAND_JOINT_INDEX_TIP_EXT];
+            OVR::Vector3f t(thumb.pose.position.x, thumb.pose.position.y, thumb.pose.position.z);
+            OVR::Vector3f i(index.pose.position.x, index.pose.position.y, index.pose.position.z);
+            float dist = (t - i).Length();
+            const float threshold = 0.025f;
+            float strength = 0.0f;
+            if (dist < threshold)
+            {
+                strength = std::min(1.0f, (threshold - dist) / threshold);
+                TriggerPinch(action, strength, (t + i) * 0.5f, true);
+                activeFlag = true;
+            }
+            else if (activeFlag)
+            {
+                TriggerPinch(action, 0.0f, (t + i) * 0.5f, false);
+                activeFlag = false;
+            }
+        };
+
+        process(leftHandTracker_, CTX::Action::PinchLeft, leftPinchActive_);
+        process(rightHandTracker_, CTX::Action::PinchRight, rightPinchActive_);
+    }
+
+    void TriggerPinch(CTX::Action action, float strength, const OVR::Vector3f &pos, bool active)
+    {
+        if (!ctx_)
+            return;
+        CTX::ActionEvent evt{action, strength, pos, active};
+        ctx_->Trigger(evt);
+    }
 
     // PRIVATE_EXIT
 };
