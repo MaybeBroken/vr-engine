@@ -241,20 +241,37 @@ public:
 
     virtual void ProjectionAddLayer(OVRFW::XrApp::xrCompositorLayerUnion *layers, int &layerCount) override
     {
-        // Build default projection layer via base, then attach alpha blend factors.
+        // 1) If passthrough is active, submit it first so it's drawn behind projection layers.
+        if (passthroughActive_)
+        {
+            XrCompositionLayerPassthroughFB ptLayer{XR_TYPE_COMPOSITION_LAYER_PASSTHROUGH_FB};
+            ptLayer.next = nullptr;
+            ptLayer.flags = XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT; // or PREMULTIPLIED if you prefer
+            ptLayer.layerHandle = passthroughLayer_;
+
+            layers[layerCount].Passthrough = ptLayer;
+            layerCount++;
+        }
+
+        // 2) Now add the normal projection layer(s) using the base implementation.
+        //    This will append projection layers after the passthrough we just added.
         OVRFW::XrApp::ProjectionAddLayer(layers, layerCount);
-        // Attach FB alpha blend extension struct with premultiplied factors.
+
+        // 3) Attach alpha-blend extension to the last added projection layer (if supported).
+        //    layerCount > 0 is still a valid guard because ProjectionAddLayer appended at least one projection layer.
         if (alphaBlendSupported_ && layerCount > 0)
         {
+            // Find the most-recent projection layer we just added. It should be at layerCount-1.
             alphaBlend_.type = XR_TYPE_COMPOSITION_LAYER_ALPHA_BLEND_FB;
             alphaBlend_.next = nullptr;
             alphaBlend_.srcFactorColor = XR_BLEND_FACTOR_ONE_FB;
             alphaBlend_.dstFactorColor = XR_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA_FB;
             alphaBlend_.srcFactorAlpha = XR_BLEND_FACTOR_ONE_FB;
             alphaBlend_.dstFactorAlpha = XR_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA_FB;
-            // The last added layer is the projection layer.
+
+            // Attach the alpha-blend struct to the projection layer we just added.
+            // Important: ensure that the layer at layerCount-1 is a Projection layer here.
             layers[layerCount - 1].Projection.next = &alphaBlend_;
-            // Ensure layer flags include blending from source alpha
             layers[layerCount - 1].Projection.layerFlags |= XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
         }
     }
