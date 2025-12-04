@@ -273,6 +273,12 @@ namespace CTX
                 OVRFW::ovrDrawSurface out{};
                 out.surface = &s.surfaceDef;
                 out.modelMatrix = transform_;
+                // Ensure alpha blending stays enabled for passthrough-friendly composition.
+                // This uses premultiplied alpha in the fragment shader already.
+                s.surfaceDef.graphicsCommand.GpuState.blendEnable = OVRFW::ovrGpuState::BLEND_ENABLE;
+                s.surfaceDef.graphicsCommand.GpuState.blendMode = OVRFW::ovrGpuState::kGL_FUNC_ADD;
+                s.surfaceDef.graphicsCommand.GpuState.blendSrc = OVRFW::ovrGpuState::kGL_ONE;
+                s.surfaceDef.graphicsCommand.GpuState.blendDst = OVRFW::ovrGpuState::kGL_ONE_MINUS_SRC_ALPHA;
                 surfaces.push_back(out);
             }
         }
