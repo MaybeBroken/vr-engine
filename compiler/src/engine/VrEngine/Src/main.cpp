@@ -17,6 +17,16 @@
 #include "CTX.h"
 #include "OVR_Math.h"
 
+// OpenXR FB Passthrough function pointer typedefs
+typedef XrResult(XRAPI_PTR *PFN_xrCreatePassthroughFB)(XrSession session, const XrPassthroughCreateInfoFB *createInfo, XrPassthroughFB *passthrough);
+typedef XrResult(XRAPI_PTR *PFN_xrDestroyPassthroughFB)(XrPassthroughFB passthrough);
+typedef XrResult(XRAPI_PTR *PFN_xrPassthroughStartFB)(XrPassthroughFB passthrough);
+typedef XrResult(XRAPI_PTR *PFN_xrPassthroughPauseFB)(XrPassthroughFB passthrough);
+typedef XrResult(XRAPI_PTR *PFN_xrCreatePassthroughLayerFB)(XrSession session, const XrPassthroughLayerCreateInfoFB *createInfo, XrPassthroughLayerFB *outLayer);
+typedef XrResult(XRAPI_PTR *PFN_xrDestroyPassthroughLayerFB)(XrPassthroughLayerFB layer);
+typedef XrResult(XRAPI_PTR *PFN_xrPassthroughLayerResumeFB)(XrPassthroughLayerFB layer);
+typedef XrResult(XRAPI_PTR *PFN_xrPassthroughLayerPauseFB)(XrPassthroughLayerFB layer);
+
 // INCLUDES_END
 // VAR_SPACE_ENTRY
 
@@ -52,6 +62,15 @@ public:
         if (hasAlphaBlend)
         {
             extensions.push_back(XR_FB_COMPOSITION_LAYER_ALPHA_BLEND_EXTENSION_NAME);
+        }
+
+        // Request passthrough if available (Meta Quest runtime)
+        const bool hasPassthrough = std::any_of(
+            props.begin(), props.end(), [](const XrExtensionProperties &p)
+            { return strcmp(p.extensionName, XR_FB_PASSTHROUGH_EXTENSION_NAME) == 0; });
+        if (hasPassthrough)
+        {
+            extensions.push_back(XR_FB_PASSTHROUGH_EXTENSION_NAME);
         }
 
         // APP_EXTENSIONS_MOD_EXIT
@@ -130,11 +149,69 @@ public:
         }
         // Nothing to push; glb surfaces will be emitted during Render.
 
-        // Demo: enable passthrough-friendly rendering (requires manifest + runtime support)
-        // This ensures our draw surfaces blend with the camera feed.
+        // Enable passthrough if the runtime and manifest support it.
+        // Note: actual passthrough surfaces require XR_FB_passthrough session objects.
         if (ctx_)
         {
             ctx_->EnablePassthrough(true);
+        }
+
+        // Create and start XR_FB_passthrough objects when available.
+        // Load function pointers via xrGetInstanceProcAddr.
+        PFN_xrCreatePassthroughFB pfnCreatePassthrough = nullptr;
+        PFN_xrDestroyPassthroughFB pfnDestroyPassthrough = nullptr;
+        PFN_xrPassthroughStartFB pfnPassthroughStart = nullptr;
+        PFN_xrCreatePassthroughLayerFB pfnCreatePassthroughLayer = nullptr;
+        PFN_xrDestroyPassthroughLayerFB pfnDestroyPassthroughLayer = nullptr;
+        PFN_xrPassthroughLayerResumeFB pfnPassthroughLayerResume = nullptr;
+
+        auto loadProc = [&](const char *name, void **fn)
+        {
+            return xrGetInstanceProcAddr(GetInstance(), name, (PFN_xrVoidFunction *)fn);
+        };
+
+        bool passthroughExtEnabled = false;
+        {
+            // Check enabled extensions list
+            auto exts = GetExtensions();
+            for (auto e : exts)
+            {
+                if (strcmp(e, XR_FB_PASSTHROUGH_EXTENSION_NAME) == 0)
+                {
+                    passthroughExtEnabled = true;
+                    break;
+                }
+            }
+        }
+
+        if (passthroughExtEnabled)
+        {
+            if (loadProc("xrCreatePassthroughFB", (void **)&pfnCreatePassthrough) == XR_SUCCESS &&
+                loadProc("xrDestroyPassthroughFB", (void **)&pfnDestroyPassthrough) == XR_SUCCESS &&
+                loadProc("xrPassthroughStartFB", (void **)&pfnPassthroughStart) == XR_SUCCESS &&
+                loadProc("xrCreatePassthroughLayerFB", (void **)&pfnCreatePassthroughLayer) == XR_SUCCESS &&
+                loadProc("xrDestroyPassthroughLayerFB", (void **)&pfnDestroyPassthroughLayer) == XR_SUCCESS &&
+                loadProc("xrPassthroughLayerResumeFB", (void **)&pfnPassthroughLayerResume) == XR_SUCCESS)
+            {
+                // Create passthrough object
+                XrPassthroughCreateInfoFB ptCreate{XR_TYPE_PASSTHROUGH_CREATE_INFO_FB};
+                ptCreate.flags = 0; // default
+                if (pfnCreatePassthrough(GetSession(), &ptCreate, &passthrough_) == XR_SUCCESS)
+                {
+                    pfnPassthroughStart(passthrough_);
+
+                    // Create a passthrough layer for camera reconstruction
+                    XrPassthroughLayerCreateInfoFB layerCreate{XR_TYPE_PASSTHROUGH_LAYER_CREATE_INFO_FB};
+                    layerCreate.passthrough = passthrough_;
+                    layerCreate.flags = 0;                                                // no creation flags
+                    layerCreate.purpose = XR_PASSTHROUGH_LAYER_PURPOSE_RECONSTRUCTION_FB; // default camera
+                    if (pfnCreatePassthroughLayer(GetSession(), &layerCreate, &passthroughLayer_) == XR_SUCCESS)
+                    {
+                        pfnPassthroughLayerResume(passthroughLayer_);
+                        passthroughActive_ = true;
+                    }
+                }
+            }
         }
 
         // Session-specific renderer setup can go here if needed.
@@ -149,6 +226,25 @@ public:
         // SESSION_END_MOD_ENTRY
         controllerRenderL_.Shutdown();
         controllerRenderR_.Shutdown();
+        // Destroy passthrough resources if created
+        if (passthroughActive_)
+        {
+            PFN_xrDestroyPassthroughLayerFB pfnDestroyPassthroughLayer = nullptr;
+            PFN_xrDestroyPassthroughFB pfnDestroyPassthrough = nullptr;
+            xrGetInstanceProcAddr(GetInstance(), "xrDestroyPassthroughLayerFB", (PFN_xrVoidFunction *)&pfnDestroyPassthroughLayer);
+            xrGetInstanceProcAddr(GetInstance(), "xrDestroyPassthroughFB", (PFN_xrVoidFunction *)&pfnDestroyPassthrough);
+            if (pfnDestroyPassthroughLayer && passthroughLayer_ != XR_NULL_HANDLE)
+            {
+                pfnDestroyPassthroughLayer(passthroughLayer_);
+            }
+            if (pfnDestroyPassthrough && passthrough_ != XR_NULL_HANDLE)
+            {
+                pfnDestroyPassthrough(passthrough_);
+            }
+            passthroughLayer_ = XR_NULL_HANDLE;
+            passthrough_ = XR_NULL_HANDLE;
+            passthroughActive_ = false;
+        }
         // SESSION_END_MOD_EXIT
     }
     // SESSION_END_EXIT
@@ -226,6 +322,10 @@ private:
     std::unique_ptr<CTX::Context> ctx_;
     XrCompositionLayerAlphaBlendFB alphaBlend_{};
     bool alphaBlendSupported_ = false;
+    // Passthrough handles
+    XrPassthroughFB passthrough_ = XR_NULL_HANDLE;
+    XrPassthroughLayerFB passthroughLayer_ = XR_NULL_HANDLE;
+    bool passthroughActive_ = false;
 
     // PRIVATE_EXIT
 };

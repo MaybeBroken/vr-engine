@@ -30,8 +30,16 @@ namespace CTX
         void updatePose();
         void emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces);
         // Passthrough helpers
-        void setOpacity(float o) { opacity_ = o; dirty_ = true; }
-        void setAlphaBlend(float a) { alphaBlend_ = a; dirty_ = true; }
+        void setOpacity(float o)
+        {
+            opacity_ = o;
+            dirty_ = true;
+        }
+        void setAlphaBlend(float a)
+        {
+            alphaBlend_ = a;
+            dirty_ = true;
+        }
 
     private:
         std::unique_ptr<OVRFW::ModelFile> modelFile_;
@@ -70,7 +78,9 @@ namespace CTX
             {
                 if (enable)
                 {
-                    m.setAlphaBlend(1.0f);
+                    // Prefer using texture alpha and keep geometry opaque where intended.
+                    // Setting AlphaBlend to 0 lets diffuse.a drive transparency.
+                    m.setAlphaBlend(0.0f);
                     m.setOpacity(1.0f);
                 }
                 else

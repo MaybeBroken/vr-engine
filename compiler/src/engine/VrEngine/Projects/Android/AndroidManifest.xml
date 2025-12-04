@@ -20,6 +20,12 @@
     android:name="com.oculus.experimental.enabled"
     android:required="true"
   />
+  <!-- Passthrough feature/permission for Meta Quest runtimes -->
+  <uses-feature
+    android:name="com.oculus.feature.PASSTHROUGH"
+    android:required="false"
+  />
+  <uses-permission android:name="com.oculus.permission.PASSTHROUGH" />
   <!-- Tell the system this app can handle tracked remotes and hands -->
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
   <uses-feature

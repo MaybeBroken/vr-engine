@@ -28,7 +28,7 @@ virtual bool AppInit(const xrJava *context) override
     if (fileSys)
     {
         CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
-        heightmapModel.setPos(0.0f, 1.0f, 0.0f);
+        heightmapModel.setPos(0.0f, 0.2f, 0.2f);
         heightmapModel.setScale(1.0f);
         heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
     }
