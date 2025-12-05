@@ -244,11 +244,6 @@ public:
         // Initialize hand tracking after session is ready
         InitHandTracking();
 
-        // Initialize environment depth range from current view configuration
-        // Use typical near/far; can be updated from projection matrices.
-        envDepthNear_ = 0.1f;
-        envDepthFar_ = 10.0f;
-
         // Session-specific renderer setup can go here if needed.
         return true;
         // SESSION_INIT_MOD_EXIT

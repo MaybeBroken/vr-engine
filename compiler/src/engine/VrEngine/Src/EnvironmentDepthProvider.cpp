@@ -30,7 +30,7 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
     XrEnvironmentDepthImageMETA h{};
     if (pfnCreate_(session_, &ci, &h) != XR_SUCCESS)
     {
-        return false;3
+        return false;
     }
     handle_ = h;
     handleCreated_ = true;
@@ -62,7 +62,7 @@ void EnvironmentDepthProvider::Shutdown()
 
 bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
 {
-    if (!supported_ || handle_ == (XrEnvironmentDepthImageMETA)XR_NULL_HANDLE)
+    if (!supported_ || !handleCreated_)
         return false;
 
     struct DepthInfoStub
