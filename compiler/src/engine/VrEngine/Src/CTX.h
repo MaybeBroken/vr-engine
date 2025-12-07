@@ -41,9 +41,12 @@ namespace CTX
         // Position, rotation, and scale controls
         void setPos(float x, float y, float z)
         {
-            pos_ = OVR::Vector3f(0.0f - x, 0.0f - y, 0.0f - z);
+            pos_ = OVR::Vector3f(x, y, z);
             dirty_ = true;
         }
+        OVR::Vector3f getPos() const { return pos_; }
+        OVR::Vector3f getScale() const { return scale_; }
+        OVR::Quatf getHpr() const { return rot_; }
         void setScale(float s);
         void setHpr(float hDeg, float pDeg, float rDeg);
         bool isLoaded() const { return modelFile_ != nullptr; }
@@ -107,17 +110,18 @@ namespace CTX
     public:
         Model &LoadModel(OVRFW::ovrFileSys &fs, const std::string &uri)
         {
-            models_.emplace_back();
-            models_.back().load(fs, uri);
-            return models_.back();
+            models_.emplace_back(std::make_unique<Model>());
+            models_.back()->load(fs, uri);
+            return *models_.back();
         }
         // Enable a simple passthrough-friendly mode by ensuring alpha blending
         // is active and model opacity/alpha allow camera feed to show through.
         void EnablePassthrough(bool enable)
         {
             passthroughEnabled_ = enable;
-            for (auto &m : models_)
+            for (auto &mp : models_)
             {
+                auto &m = *mp;
                 if (enable)
                 {
                     // Prefer using texture alpha and keep geometry opaque where intended.
@@ -134,8 +138,9 @@ namespace CTX
         }
         void RenderAll(std::vector<OVRFW::ovrDrawSurface> &surfaces)
         {
-            for (auto &m : models_)
+            for (auto &mp : models_)
             {
+                auto &m = *mp;
                 if (m.isLoaded())
                 {
                     m.updatePose();
@@ -143,7 +148,7 @@ namespace CTX
                 }
             }
         }
-        std::vector<Model> &Models() { return models_; }
+        std::vector<std::unique_ptr<Model>> &Models() { return models_; }
 
         // Bind/unbind callbacks for actions
         using Callback = std::function<void(const ActionEvent &)>;
@@ -166,7 +171,7 @@ namespace CTX
         }
 
     private:
-        std::vector<Model> models_;
+        std::vector<std::unique_ptr<Model>> models_;
         OVR::Matrix4f modelMatrix_;
         bool passthroughEnabled_ = false;
         std::unordered_map<Action, Callback> callbacks_;

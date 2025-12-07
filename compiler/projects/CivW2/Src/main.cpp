@@ -27,78 +27,126 @@ virtual bool AppInit(const xrJava *context) override
     std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
     if (fileSys)
     {
-        CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
-        heightmapModel.setPos(0.0f, 0.2f, 0.4f);
+        static CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
+        heightmapModel.setPos(0.0f, -0.2f, -0.4f);
         heightmapModel.setScale(0.2f);
         heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
 
         // Demo gesture bindings: single-finger pinch moves; two-finger pinch scales+rotates+moves
         // Keep simple state for gesture processing
+        // Gesture state
         static bool leftActive = false;
         static bool rightActive = false;
         static OVR::Vector3f leftPos(0.0f), rightPos(0.0f);
-        static OVR::Vector3f lastCenter(0.0f);
-        static float lastDistance = 0.0f;
-        static float baseScale = 0.2f; // initial
-        static float baseHeadingDeg = 0.0f;
+
+        // Baselines captured on gesture start
+        static OVR::Vector3f oneFingerStartHand(0.0f);
+        static OVR::Vector3f oneFingerModelStartPos(0.0f);
+
+        static OVR::Vector3f twoFingerStartLeft(0.0f), twoFingerStartRight(0.0f);
+        static OVR::Vector3f twoFingerStartCenter(0.0f);
+        static float twoFingerStartDistance = 0.0f;
+        static OVR::Vector3f twoFingerModelStartPos(0.0f);
+        static float twoFingerModelStartScale = 0.2f;
+        static float twoFingerModelStartHeadingDeg = 0.0f;
 
         auto applyTransform = [&]()
         {
-            // One-finger: move by left or right position deltas
+            // One-finger: move relative to hand delta since gesture start
             if (leftActive ^ rightActive)
             {
                 const OVR::Vector3f p = leftActive ? leftPos : rightPos;
-                // Map hand space movement directly to model position with small gain
-                OVR::Vector3f target = p;
-                const float gain = 0.5f;
-                heightmapModel.setPos(target.x * gain, target.y * gain + 0.2f, target.z * gain + 0.4f);
+                const OVR::Vector3f d = p - oneFingerStartHand;
+                const float gain = 1.0f;
+                OVR::Vector3f target = oneFingerModelStartPos + d * gain;
+                heightmapModel.setPos(target.x, target.y, target.z);
             }
             // Two-finger: scale, rotate heading, and move to center between fingers
             else if (leftActive && rightActive)
             {
-                OVR::Vector3f center = (leftPos + rightPos) * 0.5f;
-                float dist = (leftPos - rightPos).Length();
-                if (lastDistance > 0.0f)
+                const OVR::Vector3f center = (leftPos + rightPos) * 0.5f;
+                const float dist = (leftPos - rightPos).Length();
+
+                // Scale relative to start distance
+                if (twoFingerStartDistance > 1e-5f)
                 {
-                    float scaleDelta = (dist - lastDistance);
-                    float newScale = std::max(0.05f, baseScale + scaleDelta);
+                    float scaleRatio = dist / twoFingerStartDistance;
+                    float newScale = std::max(0.05f, twoFingerModelStartScale * scaleRatio);
                     heightmapModel.setScale(newScale);
                 }
-                // Rotate around H axis based on horizontal vector between hands
-                OVR::Vector3f d = rightPos - leftPos;
-                float headingRad = atan2f(d.x, d.z);
-                float headingDeg = headingRad * (180.0f / MATH_FLOAT_PI);
-                heightmapModel.setHpr(baseHeadingDeg + headingDeg, 0.0f, 0.0f);
 
-                // Move to center with gain
-                const float moveGain = 0.5f;
-                heightmapModel.setPos(center.x * moveGain, center.y * moveGain + 0.2f, center.z * moveGain + 0.4f);
+                // Heading delta relative to start vector
+                OVR::Vector3f dcur = rightPos - leftPos;
+                float headingRadCur = atan2f(dcur.x, dcur.z);
+                OVR::Vector3f dstart = twoFingerStartRight - twoFingerStartLeft;
+                float headingRadStart = atan2f(dstart.x, dstart.z);
+                float headingDegDelta = (headingRadCur - headingRadStart) * (180.0f / MATH_FLOAT_PI);
+                heightmapModel.setHpr(twoFingerModelStartHeadingDeg + headingDegDelta, 0.0f, 0.0f);
 
-                lastCenter = center;
-                lastDistance = dist;
+                // Move to center relative to start center
+                const OVR::Vector3f centerDelta = center - twoFingerStartCenter;
+                const OVR::Vector3f newPos = twoFingerModelStartPos + centerDelta;
+                heightmapModel.setPos(newPos.x, newPos.y, newPos.z);
+            }
+            else
+            {
+                // No fingers active: nothing to apply
             }
         };
 
         // Bind pinch callbacks to update state and apply transforms
         ctx_->Bind(CTX::Action::PinchLeft, [&](const CTX::ActionEvent &e)
                    {
+            const bool wasLeftActive = leftActive;
             leftActive = e.active;
             leftPos = e.position;
-            if (e.active && !(rightActive))
+
+            // One-finger start (left-only)
+            if (leftActive && !wasLeftActive && !rightActive)
             {
-                // reset two-finger baseline when transitioning to two-finger
-                lastDistance = 0.0f;
+                oneFingerStartHand = leftPos;
+                oneFingerModelStartPos = heightmapModel.getPos();
             }
+
+            // Two-finger start when right already active
+            if (leftActive && !wasLeftActive && rightActive)
+            {
+                twoFingerStartLeft = leftPos;
+                twoFingerStartRight = rightPos;
+                twoFingerStartCenter = (twoFingerStartLeft + twoFingerStartRight) * 0.5f;
+                twoFingerStartDistance = (twoFingerStartLeft - twoFingerStartRight).Length();
+                twoFingerModelStartPos = heightmapModel.getPos();
+                twoFingerModelStartScale = heightmapModel.getScale().x;
+                twoFingerModelStartHeadingDeg = heightmapModel.getHpr().x;
+            }
+
             applyTransform(); });
 
         ctx_->Bind(CTX::Action::PinchRight, [&](const CTX::ActionEvent &e)
                    {
+            const bool wasRightActive = rightActive;
             rightActive = e.active;
             rightPos = e.position;
-            if (e.active && !(leftActive))
+
+            // One-finger start (right-only)
+            if (rightActive && !wasRightActive && !leftActive)
             {
-                lastDistance = 0.0f;
+                oneFingerStartHand = rightPos;
+                oneFingerModelStartPos = heightmapModel.getPos();
             }
+
+            // Two-finger start when left already active
+            if (rightActive && !wasRightActive && leftActive)
+            {
+                twoFingerStartLeft = leftPos;
+                twoFingerStartRight = rightPos;
+                twoFingerStartCenter = (twoFingerStartLeft + twoFingerStartRight) * 0.5f;
+                twoFingerStartDistance = (twoFingerStartLeft - twoFingerStartRight).Length();
+                twoFingerModelStartPos = heightmapModel.getPos();
+                twoFingerModelStartScale = heightmapModel.getScale().x;
+                twoFingerModelStartHeadingDeg = heightmapModel.getHpr().x;
+            }
+
             applyTransform(); });
     }
     // APP_INIT_MOD_EXIT

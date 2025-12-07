@@ -255,7 +255,7 @@ namespace CTX
         // Lighting defaults (match SimpleGlbRenderer)
         specularDir_ = OVR::Vector3f(1.0f, 1.0f, 0.0f);
         specularColor_ = OVR::Vector3f(1.0f, 0.95f, 0.8f) * 0.75f;
-        ambientColor_ = OVR::Vector3f(1.0f, 1.0f, 1.0f) * 0.15f;
+        ambientColor_ = OVR::Vector3f(1.0f, 1.0f, 1.0f) * 0.75f;
 
         dirty_ = true;
         return true;

@@ -318,9 +318,9 @@ public:
             {
                 for (auto &m : ctx_->Models())
                 {
-                    m.setEnvironmentDepthTexture(envDepthProvider_.GetTexture());
-                    m.setEnvironmentDepthEnabled(true);
-                    m.setEnvironmentDepthRange(envDepthProvider_.GetNearMeters(), envDepthProvider_.GetFarMeters());
+                    m->setEnvironmentDepthTexture(envDepthProvider_.GetTexture());
+                    m->setEnvironmentDepthEnabled(true);
+                    m->setEnvironmentDepthRange(envDepthProvider_.GetNearMeters(), envDepthProvider_.GetFarMeters());
                 }
             }
         }
@@ -330,7 +330,7 @@ public:
             {
                 for (auto &m : ctx_->Models())
                 {
-                    m.setEnvironmentDepthEnabled(false);
+                    m->setEnvironmentDepthEnabled(false);
                 }
             }
         }
