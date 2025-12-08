@@ -130,12 +130,24 @@ class Indicators:
             return Indicators
 
 
-def parse_template_project(context: "Compiler"):
+def parse_template_project(context: "Compiler") -> pathlib.Path:
     NEW_PROJECT_DIR = XR_PROJECTS_ROOT / context.project.name
+    if NEW_PROJECT_DIR.exists() and any(NEW_PROJECT_DIR.iterdir()):
+        ASSETS_DIR_PATH = NEW_PROJECT_DIR / ASSETS_DIR
+        if ASSETS_DIR_PATH.exists():
+            shutil.rmtree(ASSETS_DIR_PATH)
+        os.makedirs(ASSETS_DIR_PATH, exist_ok=True)
+
+        MAIN_C_PATH = NEW_PROJECT_DIR / C_FILES
+        if MAIN_C_PATH.exists():
+            shutil.rmtree(MAIN_C_PATH)
+        os.makedirs(MAIN_C_PATH, exist_ok=True)
+        shutil.copytree(TEMPLATE_ROOT / C_FILES, MAIN_C_PATH, dirs_exist_ok=True)
+        return NEW_PROJECT_DIR
     template_files = list(TEMPLATE_ROOT.rglob("*"))
-    for existing in NEW_PROJECT_DIR.parent.glob("*"):
-        if existing.is_dir():
-            shutil.rmtree(existing)
+    # for existing in NEW_PROJECT_DIR.parent.glob("*"):
+    #     if existing.is_dir():
+    #         shutil.rmtree(existing)
     for file_path_obj in template_files:
         if any(
             (
@@ -486,6 +498,23 @@ class Compiler:
 def open_android_studio(project_path: pathlib.Path):
     import subprocess
     import sys
+    import psutil
+
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            process_name = proc.info['name']
+            if process_name:
+                if sys.platform == "win32" and "studio64.exe" in process_name:
+                    print("Android Studio is already running.")
+                    return
+                elif sys.platform == "darwin" and ("Android Studio" in process_name or "studio" in process_name):
+                    print("Android Studio is already running.")
+                    return
+                elif sys.platform == "linux" and "studio.sh" in process_name:
+                    print("Android Studio is already running.")
+                    return
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
 
     android_studio_path = ""
     if sys.platform == "win32":
