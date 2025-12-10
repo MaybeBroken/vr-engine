@@ -50,8 +50,25 @@ namespace CTX
         void setScale(float s);
         void setHpr(float hDeg, float pDeg, float rDeg);
         bool isLoaded() const { return modelFile_ != nullptr; }
-        void updatePose();
+        void updatePose(bool force = false);
         void emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces);
+        // Animation controls
+        bool HasAnimations() const;
+        bool PlayAnimationByIndex(int index,
+                      OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
+                      float speed = 1.0f,
+                      float startTime = 0.0f);
+        bool PlayAnimationByName(const std::string &name,
+                     OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
+                     float speed = 1.0f,
+                     float startTime = 0.0f);
+        bool NextAnimation();
+        bool PrevAnimation();
+        int GetAnimationCount() const;
+        void StopAnimation();
+        void SetAnimationSpeed(float speed);
+        bool IsAnimationPlaying() const { return animationPlaying_; }
+        void Update(float deltaSeconds);
         // Passthrough helpers
         void setOpacity(float o)
         {
@@ -80,11 +97,18 @@ namespace CTX
             depthFar_ = farMeters;
             dirty_ = true;
         }
+        void setEnvironmentDepthTextureSize(float width, float height)
+        {
+            envDepthWidth_ = width;
+            envDepthHeight_ = height;
+            // uniforms point directly at these; no need to mark dirty
+        }
 
     private:
         std::unique_ptr<OVRFW::ModelFile> modelFile_;
         OVRFW::GlProgram prog_{};
-        std::unique_ptr<OVRFW::GlBuffer> jointsBuffer_;
+        std::unique_ptr<OVRFW::GlBuffer> defaultJointsBuffer_;
+        std::vector<std::unique_ptr<OVRFW::GlBuffer>> skinJointBuffers_;
         // simple lighting
         OVR::Vector3f specularDir_{1.0f, 1.0f, 0.0f};
         OVR::Vector3f specularColor_{1.0f, 0.95f, 0.8f};
@@ -96,6 +120,8 @@ namespace CTX
         float envDepthEnabled_ = 0.0f;
         float depthNear_ = 0.1f;
         float depthFar_ = 10.0f;
+        float envDepthWidth_ = 1.0f;
+        float envDepthHeight_ = 1.0f;
         // transforms
         OVR::Matrix4f transform_{};
         std::vector<uint8_t> glbBuffer_;
@@ -103,6 +129,15 @@ namespace CTX
         OVR::Vector3f scale_{1.0f};
         OVR::Quatf rot_{0.0f, 0.0f, 0.0f, 1.0f};
         bool dirty_ = false;
+        bool animationPlaying_ = false;
+        int activeAnimation_ = -1;
+        float animationTime_ = 0.0f;
+        float animationSpeed_ = 1.0f;
+        OVRFW::ModelAnimationTimeType animationMode_ = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD;
+        std::unique_ptr<OVRFW::ModelState> modelState_;
+
+        void recalculateModelTransforms();
+        void updateJointsForSkin(int skinIndex);
     };
 
     class Context
@@ -145,6 +180,16 @@ namespace CTX
                 {
                     m.updatePose();
                     m.emitSurfaces(surfaces);
+                }
+            }
+        }
+        void Update(float deltaSeconds)
+        {
+            for (auto &mp : models_)
+            {
+                if (mp && mp->isLoaded())
+                {
+                    mp->Update(deltaSeconds);
                 }
             }
         }

@@ -87,6 +87,16 @@ public:
         {
             extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
         }
+        uint32_t extCount = 0;
+        xrEnumerateInstanceExtensionProperties(nullptr, 0, &extCount, nullptr);
+
+        std::vector<XrExtensionProperties> extProps(extCount, {XR_TYPE_EXTENSION_PROPERTIES});
+        xrEnumerateInstanceExtensionProperties(nullptr, extCount, &extCount, extProps.data());
+
+        for (auto &e : extProps)
+        {
+            ALOG("EXT: %s v%d", e.extensionName, e.extensionVersion);
+        }
 
         // Request environment depth (Meta Quest)
         const bool hasEnvDepth = std::any_of(
@@ -299,6 +309,19 @@ public:
     {
         // UPDATE_MOD_ENTRY
 
+        if (ctx_)
+        {
+            ctx_->Update(in.DeltaSeconds);
+            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonA))
+            {
+                TriggerAction(CTX::Action::ButtonA, 1.0f, OVR::Vector3f(0.0f), true);
+            }
+            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonB))
+            {
+                TriggerAction(CTX::Action::ButtonB, 1.0f, OVR::Vector3f(0.0f), true);
+            }
+        }
+
         if (in.LeftRemoteTracked)
         {
             controllerRenderL_.Update(in.LeftRemotePose);
@@ -321,6 +344,9 @@ public:
                     m->setEnvironmentDepthTexture(envDepthProvider_.GetTexture());
                     m->setEnvironmentDepthEnabled(true);
                     m->setEnvironmentDepthRange(envDepthProvider_.GetNearMeters(), envDepthProvider_.GetFarMeters());
+                    m->setEnvironmentDepthTextureSize(
+                        static_cast<float>(envDepthProvider_.GetWidth()),
+                        static_cast<float>(envDepthProvider_.GetHeight()));
                 }
             }
         }
@@ -332,6 +358,7 @@ public:
                 {
                     m->setEnvironmentDepthEnabled(false);
                 }
+                ALOG("Environment depth not available for this frame.");
             }
         }
         // UPDATE_MOD_EXIT
@@ -501,6 +528,14 @@ private:
     }
 
     void TriggerPinch(CTX::Action action, float strength, const OVR::Vector3f &pos, bool active)
+    {
+        if (!ctx_)
+            return;
+        CTX::ActionEvent evt{action, strength, pos, active};
+        ctx_->Trigger(evt);
+    }
+
+    void TriggerAction(CTX::Action action, float strength, const OVR::Vector3f &pos, bool active)
     {
         if (!ctx_)
             return;

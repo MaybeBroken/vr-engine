@@ -44,6 +44,9 @@
     android:name="com.oculus.feature.HAND_TRACKING"
     android:required="false"
   />
+  <uses-feature android:name="com.oculus.feature.PASSTHROUGH" />
+  <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+  <uses-permission android:name="com.oculus.permission.USE_ENVIRONMENT_DEPTH" />
   <!--INJECT_END-->
   <application
     android:allowBackup="false"
@@ -67,6 +70,7 @@
         android:name="android.app.lib_name"
         android:value="xrsamples_xrhands_and_controllers"
       />
+      <meta-data android:name="com.oculus.environment_depth" android:value="true" />
       <!-- This filter lets the apk show up as a launchable icon -->
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />

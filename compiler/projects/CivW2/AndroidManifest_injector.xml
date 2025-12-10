@@ -11,8 +11,13 @@
   android:required="false"
 />
 <!-- Grants access to Passthrough API. -->
+<uses-feature android:name="com.oculus.feature.PASSTHROUGH" />
+<!-- Mixed Reality scene/anchors (optional, for room meshes) -->
 <uses-feature
-  android:name="com.oculus.feature.PASSTHROUGH"
+  android:name="com.oculus.feature.SCENE"
   android:required="false"
 />
+<uses-permission android:name="com.oculus.permission.USE_SCENE" />
+<uses-permission android:name="com.oculus.permission.SPATIAL_ANCHORS" />
+<uses-permission android:name="com.oculus.permission.USE_ENVIRONMENT_DEPTH" />
 <uses-permission android:name="com.oculus.permission.PASSTHROUGH" />

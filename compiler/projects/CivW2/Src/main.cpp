@@ -19,6 +19,11 @@
 // "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
 // "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
 
+// --------
+#include "CTX.h"
+#include "OVR_Math.h"
+// --------   doesn't interfere with anything; just for syntax help in this injector file
+
 #app_init> w
 virtual bool AppInit(const xrJava *context) override
 {
@@ -148,6 +153,20 @@ virtual bool AppInit(const xrJava *context) override
             }
 
             applyTransform(); });
+
+        ctx_->Bind(CTX::Action::ButtonA, [&](const CTX::ActionEvent &e)
+                   {
+            if (e.active && heightmapModel.HasAnimations())
+            {
+                heightmapModel.NextAnimation();
+            } });
+
+        ctx_->Bind(CTX::Action::ButtonB, [&](const CTX::ActionEvent &e)
+                   {
+            if (e.active && heightmapModel.HasAnimations())
+            {
+                heightmapModel.PrevAnimation();
+            } });
     }
     // APP_INIT_MOD_EXIT
     return true;
