@@ -419,7 +419,8 @@ namespace CTX
     bool Model::PlayAnimationByIndex(int index,
                                      OVRFW::ModelAnimationTimeType mode,
                                      float speed,
-                                     float startTime)
+                                     float startTime,
+                                     bool singleShot)
     {
         if (!modelFile_ || !modelState_)
             return false;
@@ -427,10 +428,11 @@ namespace CTX
             return false;
 
         activeAnimation_ = index;
-        animationMode_ = mode;
+        animationMode_ = singleShot ? OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD : mode;
         animationSpeed_ = speed;
         animationTime_ = startTime;
         animationPlaying_ = true;
+        singleShot_ = singleShot;
 
         modelState_->CalculateAnimationFrameAndFraction(animationMode_, animationTime_);
         OVRFW::ApplyAnimation(*modelState_, activeAnimation_);
@@ -442,7 +444,8 @@ namespace CTX
     bool Model::PlayAnimationByName(const std::string &name,
                                     OVRFW::ModelAnimationTimeType mode,
                                     float speed,
-                                    float startTime)
+                                    float startTime,
+                                    bool singleShot)
     {
         if (!modelFile_ || !modelState_)
             return false;
@@ -453,7 +456,7 @@ namespace CTX
         if (it == modelFile_->Animations.end())
             return false;
         const int index = static_cast<int>(std::distance(modelFile_->Animations.begin(), it));
-        return PlayAnimationByIndex(index, mode, speed, startTime);
+        return PlayAnimationByIndex(index, mode, speed, startTime, singleShot);
     }
 
     int Model::GetAnimationCount() const
@@ -461,16 +464,32 @@ namespace CTX
         return modelFile_ ? static_cast<int>(modelFile_->Animations.size()) : 0;
     }
 
-    bool Model::NextAnimation()
+    float Model::getAnimationEndTime() const
+    {
+        if (!modelFile_)
+            return 0.0f;
+        float endTime = modelFile_->animationEndTime;
+        if (endTime > 0.0f)
+            return endTime;
+
+        // Fallback: derive from timelines
+        for (const auto &tl : modelFile_->AnimationTimeLines)
+        {
+            endTime = std::max(endTime, tl.endTime);
+        }
+        return endTime;
+    }
+
+    bool Model::NextAnimation(bool singleShot)
     {
         const int count = GetAnimationCount();
         if (count == 0)
             return false;
         const int nextIndex = (activeAnimation_ >= 0) ? (activeAnimation_ + 1) % count : 0;
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f);
+        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, singleShot);
     }
 
-    bool Model::PrevAnimation()
+    bool Model::PrevAnimation(bool singleShot)
     {
         const int count = GetAnimationCount();
         if (count == 0)
@@ -484,7 +503,7 @@ namespace CTX
         {
             nextIndex = std::max(0, nextIndex - 1);
         }
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f);
+        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, singleShot);
     }
 
     void Model::StopAnimation()
@@ -510,6 +529,15 @@ namespace CTX
                 OVRFW::ApplyAnimation(*modelState_, activeAnimation_);
                 recalculateModelTransforms();
                 advanced = true;
+
+                if (singleShot_ && animationMode_ == OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD)
+                {
+                    const float endTime = getAnimationEndTime();
+                    if (endTime > 0.0f && animationTime_ >= endTime)
+                    {
+                        animationPlaying_ = false;
+                    }
+                }
             }
             else
             {

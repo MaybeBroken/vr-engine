@@ -57,13 +57,15 @@ namespace CTX
         bool PlayAnimationByIndex(int index,
                       OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
                       float speed = 1.0f,
-                      float startTime = 0.0f);
+                      float startTime = 0.0f,
+                      bool singleShot = false);
         bool PlayAnimationByName(const std::string &name,
                      OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
                      float speed = 1.0f,
-                     float startTime = 0.0f);
-        bool NextAnimation();
-        bool PrevAnimation();
+                     float startTime = 0.0f,
+                     bool singleShot = false);
+        bool NextAnimation(bool singleShot = false);
+        bool PrevAnimation(bool singleShot = false);
         int GetAnimationCount() const;
         void StopAnimation();
         void SetAnimationSpeed(float speed);
@@ -98,6 +100,7 @@ namespace CTX
             dirty_ = true;
         }
         void setEnvironmentDepthTextureSize(float width, float height)
+            float getAnimationEndTime() const;
         {
             envDepthWidth_ = width;
             envDepthHeight_ = height;
@@ -134,6 +137,7 @@ namespace CTX
         float animationTime_ = 0.0f;
         float animationSpeed_ = 1.0f;
         OVRFW::ModelAnimationTimeType animationMode_ = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD;
+        bool singleShot_ = false;
         std::unique_ptr<OVRFW::ModelState> modelState_;
 
         void recalculateModelTransforms();

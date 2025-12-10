@@ -158,14 +158,14 @@ virtual bool AppInit(const xrJava *context) override
                    {
             if (e.active && heightmapModel.HasAnimations())
             {
-                heightmapModel.NextAnimation();
+                heightmapModel.NextAnimation(true);
             } });
 
         ctx_->Bind(CTX::Action::ButtonB, [&](const CTX::ActionEvent &e)
                    {
             if (e.active && heightmapModel.HasAnimations())
             {
-                heightmapModel.PrevAnimation();
+                heightmapModel.PrevAnimation(true);
             } });
     }
     // APP_INIT_MOD_EXIT

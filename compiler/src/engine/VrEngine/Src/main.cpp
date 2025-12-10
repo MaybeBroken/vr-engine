@@ -320,6 +320,29 @@ public:
             {
                 TriggerAction(CTX::Action::ButtonB, 1.0f, OVR::Vector3f(0.0f), true);
             }
+
+            // Map controller triggers to the same pinch actions as hand tracking
+            const float triggerOn = 0.15f;
+
+            const bool leftNow = in.LeftRemoteIndexTrigger > triggerOn;
+            const OVR::Vector3f leftPos = OVR::Vector3f(in.LeftRemotePose.Translation.x,
+                                                        in.LeftRemotePose.Translation.y,
+                                                        in.LeftRemotePose.Translation.z);
+            if (leftNow || leftTriggerHeld_)
+            {
+                TriggerAction(CTX::Action::PinchLeft, in.LeftRemoteIndexTrigger, leftPos, leftNow);
+            }
+            leftTriggerHeld_ = leftNow;
+
+            const bool rightNow = in.RightRemoteIndexTrigger > triggerOn;
+            const OVR::Vector3f rightPos = OVR::Vector3f(in.RightRemotePose.Translation.x,
+                                                         in.RightRemotePose.Translation.y,
+                                                         in.RightRemotePose.Translation.z);
+            if (rightNow || rightTriggerHeld_)
+            {
+                TriggerAction(CTX::Action::PinchRight, in.RightRemoteIndexTrigger, rightPos, rightNow);
+            }
+            rightTriggerHeld_ = rightNow;
         }
 
         if (in.LeftRemoteTracked)
@@ -542,6 +565,9 @@ private:
         CTX::ActionEvent evt{action, strength, pos, active};
         ctx_->Trigger(evt);
     }
+
+    bool leftTriggerHeld_ = false;
+    bool rightTriggerHeld_ = false;
 
     // PRIVATE_EXIT
 };
