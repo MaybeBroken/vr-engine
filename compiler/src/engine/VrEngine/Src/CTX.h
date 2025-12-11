@@ -52,18 +52,21 @@ namespace CTX
         bool isLoaded() const { return modelFile_ != nullptr; }
         void updatePose(bool force = false);
         void emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces);
+        int findNode(const std::string &name);
+        // Toggle visibility for a named node and its children. Returns false if the node is missing.
+        bool setActiveNode(const std::string &name, bool active);
         // Animation controls
         bool HasAnimations() const;
         bool PlayAnimationByIndex(int index,
-                      OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
-                      float speed = 1.0f,
-                      float startTime = 0.0f,
-                      bool singleShot = false);
+                                  OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
+                                  float speed = 1.0f,
+                                  float startTime = 0.0f,
+                                  bool singleShot = false);
         bool PlayAnimationByName(const std::string &name,
-                     OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
-                     float speed = 1.0f,
-                     float startTime = 0.0f,
-                     bool singleShot = false);
+                                 OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
+                                 float speed = 1.0f,
+                                 float startTime = 0.0f,
+                                 bool singleShot = false);
         bool NextAnimation(bool singleShot = false);
         bool PrevAnimation(bool singleShot = false);
         int GetAnimationCount() const;
@@ -99,8 +102,8 @@ namespace CTX
             depthFar_ = farMeters;
             dirty_ = true;
         }
+        float getAnimationEndTime() const;
         void setEnvironmentDepthTextureSize(float width, float height)
-            float getAnimationEndTime() const;
         {
             envDepthWidth_ = width;
             envDepthHeight_ = height;
@@ -139,6 +142,10 @@ namespace CTX
         OVRFW::ModelAnimationTimeType animationMode_ = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD;
         bool singleShot_ = false;
         std::unique_ptr<OVRFW::ModelState> modelState_;
+        // Visibility mask per node; 1 = visible, 0 = hidden.
+        std::vector<uint8_t> nodeVisibility_;
+
+        bool isNodeVisible(int nodeIndex) const;
 
         void recalculateModelTransforms();
         void updateJointsForSkin(int skinIndex);

@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <algorithm>
+#include <array>
+#include <string>
 #include <openxr/openxr.h>
 #include <sstream>
 #include <iomanip>

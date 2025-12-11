@@ -151,6 +151,76 @@ namespace CTX
         return qH * qP * qR; // heading then pitch then roll
     }
 
+    int Model::findNode(const std::string &name)
+    {
+        if (!modelFile_)
+        {
+            return -1;
+        }
+
+        for (size_t i = 0; i < modelFile_->Nodes.size(); ++i)
+        {
+            if (modelFile_->Nodes[i].name == name)
+            {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+
+    bool Model::setActiveNode(const std::string &name, bool active)
+    {
+        if (!modelFile_ || !modelState_)
+        {
+            return false;
+        }
+
+        const int idx = findNode(name);
+        if (idx < 0)
+        {
+            return false;
+        }
+
+        if (nodeVisibility_.size() != modelFile_->Nodes.size())
+        {
+            nodeVisibility_.assign(modelFile_->Nodes.size(), 1);
+        }
+
+        nodeVisibility_[idx] = active ? 1 : 0;
+        return true;
+    }
+
+    bool Model::isNodeVisible(int nodeIndex) const
+    {
+        if (!modelState_)
+        {
+            return true;
+        }
+
+        if (nodeVisibility_.empty())
+        {
+            return true;
+        }
+
+        int current = nodeIndex;
+        while (current >= 0 && current < static_cast<int>(nodeVisibility_.size()))
+        {
+            if (nodeVisibility_[current] == 0)
+            {
+                return false;
+            }
+
+            const auto *node = modelState_->nodeStates[current].GetNode();
+            if (!node)
+            {
+                break;
+            }
+            current = node->parentIndex;
+        }
+
+        return true;
+    }
+
     bool Model::load(OVRFW::ovrFileSys &fs, const std::string &uri)
     {
         glbBuffer_.clear();
@@ -214,6 +284,7 @@ namespace CTX
 
         modelState_ = std::make_unique<OVRFW::ModelState>();
         modelState_->GenerateStateFromModelFile(modelFile_.get());
+        nodeVisibility_.assign(modelFile_->Nodes.size(), 1);
 
         const size_t kMaxJoints = 16;
         auto initJointBuffer = [&](OVRFW::GlBuffer &buffer, const std::vector<OVR::Matrix4f> &transforms)
@@ -292,7 +363,7 @@ namespace CTX
         }
 
         // Lighting defaults (match SimpleGlbRenderer)
-        specularDir_ = OVR::Vector3f(1.0f, 1.0f, 0.0f);
+        specularDir_ = OVR::Vector3f(0.75f, -0.5f, 0.0f);
         specularColor_ = OVR::Vector3f(1.0f, 0.95f, 0.8f) * 0.75f;
         ambientColor_ = OVR::Vector3f(1.0f, 1.0f, 1.0f) * 0.75f;
 
@@ -559,6 +630,12 @@ namespace CTX
         {
             for (auto &nodeState : modelState_->nodeStates)
             {
+                const int nodeIndex = static_cast<int>(&nodeState - modelState_->nodeStates.data());
+                if (!isNodeVisible(nodeIndex))
+                {
+                    continue;
+                }
+
                 const auto *node = nodeState.GetNode();
                 if (node == nullptr || node->model == nullptr)
                 {

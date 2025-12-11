@@ -22,6 +22,8 @@
 // --------
 #include "CTX.h"
 #include "OVR_Math.h"
+#include <array>
+#include <string>
 // --------   doesn't interfere with anything; just for syntax help in this injector file
 
 #app_init> w
@@ -29,13 +31,42 @@ virtual bool AppInit(const xrJava *context) override
 {
     // APP_INIT_MOD_ENTRY
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
+    // load model paths
     std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
+    std::string handUIPath = "apk:///assets/Getting_UI.glb";
+    static const std::array<int, 17> animationSteps = {
+        0,
+        1,
+        -2,
+        2,
+        3,
+        -2,
+        4,
+        -2,
+        5,
+        -1, // reset
+    };
+    static std::array<std::string, 5> uiPanels = {"0", "1", "2", "3", "4"};
+    static size_t currentAnimationStep = 0;
+    (void)animationSteps;
+    (void)currentAnimationStep;
+
     if (fileSys)
     {
         static CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
         heightmapModel.setPos(0.0f, -0.2f, -0.4f);
         heightmapModel.setScale(0.2f);
         heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
+
+        static CTX::Model &handUIModel = ctx_->LoadModel(*fileSys, handUIPath);
+        handUIModel.setPos(0.0f, 0.0f, -0.2f);
+        handUIModel.setScale(1.0f);
+        handUIModel.setHpr(0.0f, 0.0f, 0.0f);
+        // // hide all panels initially
+        // for (const auto &panel : uiPanels)
+        // {
+        //     handUIModel.setActiveNode(panel, false);
+        // }
 
         // Demo gesture bindings: single-finger pinch moves; two-finger pinch scales+rotates+moves
         // Keep simple state for gesture processing
@@ -133,6 +164,9 @@ virtual bool AppInit(const xrJava *context) override
             rightActive = e.active;
             rightPos = e.position;
 
+            // Keep the hand UI anchored to the right controller position.
+            handUIModel.setPos(rightPos.x, rightPos.y, rightPos.z);
+
             // One-finger start (right-only)
             if (rightActive && !wasRightActive && !leftActive)
             {
@@ -154,11 +188,27 @@ virtual bool AppInit(const xrJava *context) override
 
             applyTransform(); });
 
+        auto showCurrentPanel = [&]()
+        {
+            // Hide all panels
+            // for (const auto &panel : uiPanels)
+            // {
+            //     handUIModel.setActiveNode(panel, false);
+            // }
+            // Show current panel if valid
+            if (currentAnimationStep < uiPanels.size())
+            {
+                handUIModel.setActiveNode(uiPanels[currentAnimationStep], true);
+            }
+        };
+
         ctx_->Bind(CTX::Action::ButtonA, [&](const CTX::ActionEvent &e)
                    {
             if (e.active && heightmapModel.HasAnimations())
             {
                 heightmapModel.NextAnimation(true);
+                currentAnimationStep = (currentAnimationStep + 1) % uiPanels.size();
+                showCurrentPanel();
             } });
 
         ctx_->Bind(CTX::Action::ButtonB, [&](const CTX::ActionEvent &e)
@@ -166,6 +216,15 @@ virtual bool AppInit(const xrJava *context) override
             if (e.active && heightmapModel.HasAnimations())
             {
                 heightmapModel.PrevAnimation(true);
+                if (currentAnimationStep == 0)
+                {
+                    currentAnimationStep = uiPanels.size() - 1;
+                }
+                else
+                {
+                    currentAnimationStep = (currentAnimationStep - 1) % uiPanels.size();
+                }
+                showCurrentPanel();
             } });
     }
     // APP_INIT_MOD_EXIT
