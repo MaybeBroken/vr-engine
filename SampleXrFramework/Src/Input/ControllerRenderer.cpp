@@ -29,6 +29,7 @@ Authors     :   Federico Schliemann
 
 #include "Render/GeometryBuilder.h"
 #include "Render/GlGeometry.h"
+#include "Model/ModelFileLoading.h"
 
 using OVR::Matrix4f;
 using OVR::Posef;
@@ -176,6 +177,39 @@ void ControllerRenderer::LoadModelFromResource(
             ControllerSurface.surface = &(ControllerSurfaceDef);
         }
     }
+}
+
+bool ControllerRenderer::LoadModelFromBuffer(const uint8_t* data, size_t size) {
+  if (!data || size == 0) {
+    return false;
+  }
+
+  if (Model) {
+    delete Model;
+    Model = nullptr;
+  }
+
+  ModelGlPrograms programs(&ProgControllerTexture);
+  MaterialParms materials;
+  Model = LoadModelFile_glB("controller_model_buffer", reinterpret_cast<const char*>(data), static_cast<int>(size), programs, materials);
+  if (Model != nullptr) {
+    for (auto& model : Model->Models) {
+      auto& gc = model.surfaces[0].surfaceDef.graphicsCommand;
+      gc.UniformData[0].Data = &SpecularLightDirection;
+      gc.UniformData[1].Data = &SpecularLightColor;
+      gc.UniformData[2].Data = &AmbientLightColor;
+      gc.UniformData[3].Data = &gc.Textures[0];
+      gc.GpuState.depthEnable = gc.GpuState.depthMaskEnable = true;
+      gc.GpuState.blendEnable = ovrGpuState::BLEND_ENABLE;
+      gc.GpuState.blendSrc = ovrGpuState::kGL_SRC_ALPHA;
+      gc.GpuState.blendDst = ovrGpuState::kGL_ONE_MINUS_SRC_ALPHA;
+      ControllerSurfaceDef = model.surfaces[0].surfaceDef;
+    }
+    ControllerSurface.surface = &(ControllerSurfaceDef);
+    return true;
+  }
+
+  return false;
 }
 
 bool ControllerRenderer::Init(

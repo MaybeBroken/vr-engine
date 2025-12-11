@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <vector>
 #include <openxr/openxr.h>
 #include <sstream>
 #include <iomanip>
@@ -88,6 +89,15 @@ public:
         if (hasHandTracking)
         {
             extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+        }
+
+        // Request controller render models (high fidelity) if available.
+        const bool hasControllerModel = std::any_of(
+            props.begin(), props.end(), [](const XrExtensionProperties &p)
+            { return strcmp(p.extensionName, XR_MSFT_CONTROLLER_MODEL_EXTENSION_NAME) == 0; });
+        if (hasControllerModel)
+        {
+            extensions.push_back(XR_MSFT_CONTROLLER_MODEL_EXTENSION_NAME);
         }
         uint32_t extCount = 0;
         xrEnumerateInstanceExtensionProperties(nullptr, 0, &extCount, nullptr);
@@ -182,6 +192,30 @@ public:
         {
             ALOG("AppInit::Init R controller renderer FAILED.");
             return false;
+        }
+
+        // Load higher-fidelity controller models via XR_MSFT_controller_model if supported.
+        controllerModelExtSupported_ = false;
+
+        // Check enabled extensions list
+        auto exts = GetExtensions();
+        auto hasExt = [&](const char *name)
+        {
+            return std::any_of(exts.begin(), exts.end(), [&](const char *e)
+                               { return strcmp(e, name) == 0; });
+        };
+        if (hasExt(XR_MSFT_CONTROLLER_MODEL_EXTENSION_NAME))
+        {
+            controllerModelExtSupported_ =
+                (xrGetInstanceProcAddr(GetInstance(), "xrGetControllerModelKeyMSFT", (PFN_xrVoidFunction *)&pfnGetControllerModelKeyMSFT_) == XR_SUCCESS) &&
+                (xrGetInstanceProcAddr(GetInstance(), "xrLoadControllerModelMSFT", (PFN_xrVoidFunction *)&pfnLoadControllerModelMSFT_) == XR_SUCCESS);
+        }
+
+        if (controllerModelExtSupported_)
+        {
+            const bool leftLoaded = TryLoadSystemControllerModel(LeftHandPath, true);
+            const bool rightLoaded = TryLoadSystemControllerModel(RightHandPath, false);
+            ALOG("Controller models loaded (L:%d R:%d) via XR_MSFT_controller_model", leftLoaded ? 1 : 0, rightLoaded ? 1 : 0);
         }
         // Nothing to push; glb surfaces will be emitted during Render.
 
@@ -306,9 +340,9 @@ public:
     // SESSION_END_EXIT
 
     // Update state
-    // UPDATE_ENTRY
     virtual void Update(const OVRFW::ovrApplFrameIn &in) override
     {
+        // UPDATE_ENTRY
         // UPDATE_MOD_ENTRY
 
         if (ctx_)
@@ -387,8 +421,8 @@ public:
             }
         }
         // UPDATE_MOD_EXIT
+        // UPDATE_EXIT
     }
-    // UPDATE_EXIT
     // RENDER_ENTRY
     virtual void Render(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override
     {
@@ -462,6 +496,7 @@ private:
     std::unique_ptr<CTX::Context> ctx_;
     XrCompositionLayerAlphaBlendFB alphaBlend_{};
     bool alphaBlendSupported_ = false;
+    bool controllerModelExtSupported_ = false;
     // Passthrough handles
     XrPassthroughFB passthrough_ = XR_NULL_HANDLE;
     XrPassthroughLayerFB passthroughLayer_ = XR_NULL_HANDLE;
@@ -473,11 +508,59 @@ private:
     PFN_xrCreateHandTrackerEXT pfnCreateHandTracker_ = nullptr;
     PFN_xrDestroyHandTrackerEXT pfnDestroyHandTracker_ = nullptr;
     PFN_xrLocateHandJointsEXT pfnLocateHandJoints_ = nullptr;
+    PFN_xrGetControllerModelKeyMSFT pfnGetControllerModelKeyMSFT_ = nullptr;
+    PFN_xrLoadControllerModelMSFT pfnLoadControllerModelMSFT_ = nullptr;
     XrHandTrackerEXT leftHandTracker_ = XR_NULL_HANDLE;
     XrHandTrackerEXT rightHandTracker_ = XR_NULL_HANDLE;
     bool handTrackingEnabled_ = false;
     bool leftPinchActive_ = false;
     bool rightPinchActive_ = false;
+    std::vector<uint8_t> controllerModelBufL_;
+    std::vector<uint8_t> controllerModelBufR_;
+
+    bool TryLoadSystemControllerModel(XrPath userPath, bool isLeft)
+    {
+        if (!controllerModelExtSupported_ || !pfnGetControllerModelKeyMSFT_ || !pfnLoadControllerModelMSFT_)
+        {
+            return false;
+        }
+
+        XrControllerModelKeyStateMSFT keyState{XR_TYPE_CONTROLLER_MODEL_KEY_STATE_MSFT};
+        if (pfnGetControllerModelKeyMSFT_(GetSession(), userPath, &keyState) != XR_SUCCESS)
+        {
+            return false;
+        }
+
+        if (keyState.modelKey == XR_NULL_CONTROLLER_MODEL_KEY_MSFT)
+        {
+            return false;
+        }
+
+        uint32_t needed = 0;
+        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, 0, &needed, nullptr) != XR_SUCCESS || needed == 0)
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> buffer(needed);
+        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, needed, &needed, buffer.data()) != XR_SUCCESS)
+        {
+            return false;
+        }
+
+        bool loaded = false;
+        if (isLeft)
+        {
+            controllerModelBufL_ = std::move(buffer);
+            loaded = controllerRenderL_.LoadModelFromBuffer(controllerModelBufL_.data(), controllerModelBufL_.size());
+        }
+        else
+        {
+            controllerModelBufR_ = std::move(buffer);
+            loaded = controllerRenderR_.LoadModelFromBuffer(controllerModelBufR_.data(), controllerModelBufR_.size());
+        }
+        return loaded;
+    }
 
     void InitHandTracking()
     {

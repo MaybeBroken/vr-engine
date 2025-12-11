@@ -24,6 +24,7 @@
 #include "OVR_Math.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <string>
 // --------   doesn't interfere with anything; just for syntax help in this injector file
 
@@ -34,7 +35,7 @@ virtual bool AppInit(const xrJava *context) override
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
     // load model paths
     std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
-    std::string handUIPath = "apk:///assets/Getting_UI.glb";
+    std::string handUIPath = "apk:///assets/Gettysburg_UI.glb";
     struct AnimationStep
     {
         int animIndex;
@@ -46,12 +47,19 @@ virtual bool AppInit(const xrJava *context) override
     static const std::array<AnimationStep, 5> animationSteps = {{
         {0, CTX::Blocking::Local, true, true},
         {1, CTX::Blocking::Local, false, false},
-        {2, CTX::Blocking::None, true, false}, // custom non-anim step
-        {3, CTX::Blocking::None, true, false},
-        {4, CTX::Blocking::None, false, false},
+        {2, CTX::Blocking::Local, true, false}, // custom non-anim step
+        {3, CTX::Blocking::Local, true, false},
+        {4, CTX::Blocking::Local, false, false},
     }};
-    static std::array<std::string, 5> uiPanels = {"0", "1", "2", "3", "4"};
+    static std::array<std::string, 5> uiPanels = {
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+    };
     static size_t currentAnimationStep = 0;
+    lastRightPose = OVR::Vector3f(0.0f);
     if (fileSys)
     {
         static CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
@@ -61,13 +69,15 @@ virtual bool AppInit(const xrJava *context) override
 
         static CTX::Model &handUIModel = ctx_->LoadModel(*fileSys, handUIPath);
         handUIModel.setPos(0.0f, 0.0f, -0.2f);
-        handUIModel.setScale(1.0f);
+        handUIModel.setScale(0.3f);
         handUIModel.setHpr(0.0f, 0.0f, 0.0f);
-        // // hide all panels initially
-        // for (const auto &panel : uiPanels)
-        // {
-        //     handUIModel.setActiveNode(panel, false);
-        // }
+        // hide all panels initially
+        for (const auto &panel : uiPanels)
+        {
+            handUIModel.setActiveNode(panel, false);
+        }
+        handUIModel.setActiveNode("0", true); // ensure default panel is shown
+        handUIRef = &handUIModel;
 
         // Demo gesture bindings: single-finger pinch moves; two-finger pinch scales+rotates+moves
         // Keep simple state for gesture processing
@@ -164,6 +174,7 @@ virtual bool AppInit(const xrJava *context) override
             const bool wasRightActive = rightActive;
             rightActive = e.active;
             rightPos = e.position;
+            lastRightPose = e.position;
 
             // Keep the hand UI anchored to the right controller position.
             handUIModel.setPos(rightPos.x, rightPos.y, rightPos.z);
@@ -192,10 +203,10 @@ virtual bool AppInit(const xrJava *context) override
         auto showCurrentPanel = [&]()
         {
             // Hide all panels
-            // for (const auto &panel : uiPanels)
-            // {
-            //     handUIModel.setActiveNode(panel, false);
-            // }
+            for (const auto &panel : uiPanels)
+            {
+                handUIModel.setActiveNode(panel, false);
+            }
             // Show current panel if valid
             if (currentAnimationStep < uiPanels.size())
             {
@@ -333,9 +344,29 @@ virtual bool AppInit(const xrJava *context) override
 }
 #end
 
-// #update> a
-// virtual void Update(const OVRFW::ovrApplFrameIn &in) override
-// {
-//     // No-op: transforms are applied inside bound callbacks in AppInit.
-// }
-// #end
+#update> p
+// Drive hand UI to follow the right controller/hand every frame, not only on pinch callbacks.
+if (handUIRef)
+{
+    // If the runtime reports the right remote is tracked, use that pose directly.
+    if (in.RightRemoteTracked)
+    {
+        const OVR::Posef pose = in.RightRemotePose;
+        handUIRef->setPos(pose.Translation.x, pose.Translation.y, pose.Translation.z);
+        // Optionally align orientation to controller heading only (ignore roll/pitch to avoid tilt).
+        handUIRef->setQuat(pose.Rotation);
+        lastRightPose = pose.Translation;
+    }
+    else
+    {
+        // Fallback to the last hand-tracking-reported position so UI stays near the hand.
+        handUIRef->setPos(lastRightPose.x, lastRightPose.y, lastRightPose.z);
+    }
+}
+
+#end
+
+#private> p
+OVR::Vector3f lastRightPose;
+CTX::Model *handUIRef = nullptr;
+#end

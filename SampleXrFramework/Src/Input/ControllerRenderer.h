@@ -57,6 +57,10 @@ class ControllerRenderer {
     void Update(const OVR::Posef& pose);
     void Render(std::vector<ovrDrawSurface>& surfaceList);
 
+    // Load a controller model directly from a GLB buffer (e.g., via XR controller model extensions).
+    // Returns true on success; falls back to procedural geometry on failure.
+    bool LoadModelFromBuffer(const uint8_t* data, size_t size);
+
     bool IsLeft() const {
         return isLeftController;
     }

@@ -114,6 +114,8 @@ class Indicators:
     RENDER_MOD_ENTRY = "RENDER_MOD_ENTRY"
     RENDER_MOD_EXIT = "RENDER_MOD_EXIT"
     RENDER_EXIT = "RENDER_EXIT"
+    PRIIVATE_ENTRY = "PRIVATE_ENTRY"
+    PRIVATE_EXIT = "PRIVATE_EXIT"
 
     headers = {
         "includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
@@ -129,6 +131,7 @@ class Indicators:
         "session_end": {"entry": SESSION_END_ENTRY, "exit": SESSION_END_EXIT},
         "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
         "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
+        "private": {"entry": PRIIVATE_ENTRY, "exit": PRIVATE_EXIT},
     }
 
     def all_indicators(return_type: type = None) -> list[str] | str | dict[str, str]:

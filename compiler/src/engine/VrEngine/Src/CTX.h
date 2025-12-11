@@ -57,6 +57,7 @@ namespace CTX
         OVR::Quatf getHpr() const { return rot_; }
         void setScale(float s);
         void setHpr(float hDeg, float pDeg, float rDeg);
+        void setQuat(const OVR::Quatf &q);
         bool isLoaded() const { return modelFile_ != nullptr; }
         void updatePose(bool force = false);
         void emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces);

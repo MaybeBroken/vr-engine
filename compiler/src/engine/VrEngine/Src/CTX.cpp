@@ -385,6 +385,12 @@ namespace CTX
         dirty_ = true;
     }
 
+    void Model::setQuat(const OVR::Quatf &q)
+    {
+        rot_ = q;
+        dirty_ = true;
+    }
+
     // New: setUniformScale (or if you have non-uniform use Vector3f)
     void Model::setScale(float uniformScale)
     {
@@ -509,7 +515,8 @@ namespace CTX
         {
             playNext_ = req; // keep only the most recent request
             requestBreakLoopAtCycleEnd();
-            return false;
+            // Consider the request handled (queued) so callers can update state immediately.
+            return true;
         }
 
         // Reset any prior queue because we're about to play immediately.
@@ -639,7 +646,8 @@ namespace CTX
         if (count == 0)
             return false;
         const int nextIndex = (activeAnimation_ >= 0) ? (activeAnimation_ + 1) % count : 0;
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, loop, blocking);
+        const auto mode = loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD;
+        return PlayAnimationByIndex(nextIndex, mode, animationSpeed_, 0.0f, loop, blocking);
     }
 
     bool Model::PrevAnimation(bool loop, Blocking blocking)
@@ -656,7 +664,8 @@ namespace CTX
         {
             nextIndex = std::max(0, nextIndex - 1);
         }
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, loop, blocking);
+        const auto mode = loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD;
+        return PlayAnimationByIndex(nextIndex, mode, animationSpeed_, 0.0f, loop, blocking);
     }
 
     void Model::StopAnimation()
@@ -680,9 +689,10 @@ namespace CTX
             if (activeAnimation_ >= 0 && activeAnimation_ < static_cast<int>(modelFile_->Animations.size()))
             {
                 const float endTime = getAnimationEndTime();
+                const bool hasEnd = endTime > 0.0f;
                 animationTime_ += deltaSeconds * animationSpeed_;
 
-                if (loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
+                if (loopEnabled_ && hasEnd && animationTime_ >= endTime)
                 {
                     if (breakLoopAfterCycle_ && playNext_.has_value())
                     {
@@ -697,10 +707,21 @@ namespace CTX
                         animationTime_ = std::fmod(animationTime_, endTime);
                     }
                 }
-                else if (!loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
+                else if (loopEnabled_ && !hasEnd && breakLoopAfterCycle_ && playNext_.has_value())
+                {
+                    // No known end time; break immediately to release the block and play the queue.
+                    animationPlaying_ = false;
+                    loopEnabled_ = false;
+                }
+                else if (!loopEnabled_ && hasEnd && animationTime_ >= endTime)
                 {
                     // Clamp to the end and stop playing.
                     animationTime_ = endTime;
+                    animationPlaying_ = false;
+                }
+                else if (!loopEnabled_ && !hasEnd)
+                {
+                    // Unknown duration for non-looping clip: stop after this frame to avoid hanging.
                     animationPlaying_ = false;
                 }
 
