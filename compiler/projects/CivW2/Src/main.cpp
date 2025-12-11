@@ -34,18 +34,21 @@ virtual bool AppInit(const xrJava *context) override
     // load model paths
     std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
     std::string handUIPath = "apk:///assets/Getting_UI.glb";
-    static const std::array<int, 17> animationSteps = {
-        0,
-        1,
-        -2,
-        2,
-        3,
-        -2,
-        4,
-        -2,
-        5,
-        -1, // reset
+    struct AnimationStep
+    {
+        int animIndex;
+        CTX::Blocking blocking;
+        bool loop;
+        bool startOnSceneInit;
     };
+
+    static const std::array<AnimationStep, 10> animationSteps = {{
+        {0, CTX::Blocking::None, true, true},
+        {1, CTX::Blocking::None, false, false},
+        {2, CTX::Blocking::None, true, false}, // custom non-anim step
+        {3, CTX::Blocking::None, true, false},
+        {4, CTX::Blocking::None, false, false},
+    }};
     static std::array<std::string, 5> uiPanels = {"0", "1", "2", "3", "4"};
     static size_t currentAnimationStep = 0;
     (void)animationSteps;
@@ -206,7 +209,7 @@ virtual bool AppInit(const xrJava *context) override
                    {
             if (e.active && heightmapModel.HasAnimations())
             {
-                heightmapModel.NextAnimation(true);
+                heightmapModel.NextAnimation(false, CTX::Blocking::None);
                 currentAnimationStep = (currentAnimationStep + 1) % uiPanels.size();
                 showCurrentPanel();
             } });
@@ -215,7 +218,7 @@ virtual bool AppInit(const xrJava *context) override
                    {
             if (e.active && heightmapModel.HasAnimations())
             {
-                heightmapModel.PrevAnimation(true);
+                heightmapModel.PrevAnimation(false, CTX::Blocking::None);
                 if (currentAnimationStep == 0)
                 {
                     currentAnimationStep = uiPanels.size() - 1;

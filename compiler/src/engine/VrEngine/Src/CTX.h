@@ -4,6 +4,7 @@
 #include <vector>
 #include <functional>
 #include <unordered_map>
+#include <optional>
 #include "OVR_Math.h"
 #include "OVR_FileSys.h"
 #include "Model/ModelFile.h"
@@ -31,6 +32,13 @@ namespace CTX
         float value;            // e.g., pinch strength [0..1]
         OVR::Vector3f position; // world-space hint (optional)
         bool active;            // true on press/gesture on, false on release
+    };
+
+    enum class Blocking
+    {
+        None,
+        Local,
+        Global
     };
 
     class Model
@@ -61,14 +69,16 @@ namespace CTX
                                   OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
                                   float speed = 1.0f,
                                   float startTime = 0.0f,
-                                  bool singleShot = false);
+                                  bool loop = true,
+                                  Blocking blocking = Blocking::None);
         bool PlayAnimationByName(const std::string &name,
                                  OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD,
                                  float speed = 1.0f,
                                  float startTime = 0.0f,
-                                 bool singleShot = false);
-        bool NextAnimation(bool singleShot = false);
-        bool PrevAnimation(bool singleShot = false);
+                                 bool loop = true,
+                                 Blocking blocking = Blocking::None);
+        bool NextAnimation(bool loop = true, Blocking blocking = Blocking::None);
+        bool PrevAnimation(bool loop = true, Blocking blocking = Blocking::None);
         int GetAnimationCount() const;
         void StopAnimation();
         void SetAnimationSpeed(float speed);
@@ -140,12 +150,30 @@ namespace CTX
         float animationTime_ = 0.0f;
         float animationSpeed_ = 1.0f;
         OVRFW::ModelAnimationTimeType animationMode_ = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD;
-        bool singleShot_ = false;
+        bool loopEnabled_ = true;
+        Blocking blockingMode_ = Blocking::None;
+        bool localBlockActive_ = false;
         std::unique_ptr<OVRFW::ModelState> modelState_;
         // Visibility mask per node; 1 = visible, 0 = hidden.
         std::vector<uint8_t> nodeVisibility_;
+        struct PendingAnimation
+        {
+            int index = -1;
+            OVRFW::ModelAnimationTimeType mode = OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD;
+            float speed = 1.0f;
+            float startTime = 0.0f;
+            bool loop = true;
+            Blocking blocking = Blocking::None;
+        };
+        std::optional<PendingAnimation> playNext_;
+
+        static bool globalBlockActive_;
+        static Model *globalBlockingModel_;
 
         bool isNodeVisible(int nodeIndex) const;
+        bool isBlockedForNewAnimation(Blocking requested) const;
+        void clearBlocking();
+        void tryPlayQueued();
 
         void recalculateModelTransforms();
         void updateJointsForSkin(int skinIndex);

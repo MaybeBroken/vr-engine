@@ -7,9 +7,13 @@
 #include "Misc/Log.h"
 #include "OVR_Math.h"
 #include <algorithm>
+#include <cmath>
 
 namespace CTX
 {
+
+    bool Model::globalBlockActive_ = false;
+    Model *Model::globalBlockingModel_ = nullptr;
 
     // Local copies of SimpleGlb shader sources to match working pipeline
     namespace Shaders
@@ -491,19 +495,39 @@ namespace CTX
                                      OVRFW::ModelAnimationTimeType mode,
                                      float speed,
                                      float startTime,
-                                     bool singleShot)
+                                     bool loop,
+                                     Blocking blocking)
     {
         if (!modelFile_ || !modelState_)
             return false;
         if (index < 0 || index >= static_cast<int>(modelFile_->Animations.size()))
             return false;
 
+        PendingAnimation req{index, mode, speed, startTime, loop, blocking};
+
+        if (isBlockedForNewAnimation(blocking))
+        {
+            playNext_ = req; // keep only the most recent request
+            return false;
+        }
+
+        // Reset any prior queue because we're about to play immediately.
+        playNext_.reset();
+
+        loopEnabled_ = loop;
+        blockingMode_ = blocking;
+        localBlockActive_ = (blocking == Blocking::Local || blocking == Blocking::Global);
+        if (blocking == Blocking::Global)
+        {
+            globalBlockActive_ = true;
+            globalBlockingModel_ = this;
+        }
+
         activeAnimation_ = index;
-        animationMode_ = singleShot ? OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD : mode;
+        animationMode_ = loop ? mode : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD;
         animationSpeed_ = speed;
         animationTime_ = startTime;
         animationPlaying_ = true;
-        singleShot_ = singleShot;
 
         modelState_->CalculateAnimationFrameAndFraction(animationMode_, animationTime_);
         OVRFW::ApplyAnimation(*modelState_, activeAnimation_);
@@ -516,7 +540,8 @@ namespace CTX
                                     OVRFW::ModelAnimationTimeType mode,
                                     float speed,
                                     float startTime,
-                                    bool singleShot)
+                                    bool loop,
+                                    Blocking blocking)
     {
         if (!modelFile_ || !modelState_)
             return false;
@@ -527,7 +552,7 @@ namespace CTX
         if (it == modelFile_->Animations.end())
             return false;
         const int index = static_cast<int>(std::distance(modelFile_->Animations.begin(), it));
-        return PlayAnimationByIndex(index, mode, speed, startTime, singleShot);
+        return PlayAnimationByIndex(index, mode, speed, startTime, loop, blocking);
     }
 
     int Model::GetAnimationCount() const
@@ -551,16 +576,60 @@ namespace CTX
         return endTime;
     }
 
-    bool Model::NextAnimation(bool singleShot)
+    bool Model::isBlockedForNewAnimation(Blocking requested) const
+    {
+        // Local block always blocks new attempts on this model.
+        if (localBlockActive_)
+        {
+            return true;
+        }
+
+        // Global block prevents other models from starting animations until cleared.
+        if (globalBlockActive_ && globalBlockingModel_ != this)
+        {
+            return true;
+        }
+
+        // If this model already holds the global block, allow replaying (e.g., queued) unless explicitly blocked.
+        (void)requested;
+        return false;
+    }
+
+    void Model::clearBlocking()
+    {
+        if (blockingMode_ == Blocking::Global && globalBlockingModel_ == this)
+        {
+            globalBlockActive_ = false;
+            globalBlockingModel_ = nullptr;
+        }
+
+        blockingMode_ = Blocking::None;
+        localBlockActive_ = false;
+    }
+
+    void Model::tryPlayQueued()
+    {
+        if (!playNext_.has_value())
+        {
+            return;
+        }
+
+        // Attempt to play queued animation; if still blocked, keep it queued.
+        PendingAnimation pending = *playNext_;
+        playNext_.reset();
+        PlayAnimationByIndex(pending.index, pending.mode, pending.speed, pending.startTime, pending.loop, pending.blocking);
+    }
+
+    bool Model::NextAnimation(bool loop, Blocking blocking)
     {
         const int count = GetAnimationCount();
         if (count == 0)
             return false;
         const int nextIndex = (activeAnimation_ >= 0) ? (activeAnimation_ + 1) % count : 0;
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, singleShot);
+        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, loop, blocking);
     }
 
-    bool Model::PrevAnimation(bool singleShot)
+    bool Model::PrevAnimation(bool loop, Blocking blocking)
     {
         const int count = GetAnimationCount();
         if (count == 0)
@@ -574,13 +643,15 @@ namespace CTX
         {
             nextIndex = std::max(0, nextIndex - 1);
         }
-        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, singleShot);
+        return PlayAnimationByIndex(nextIndex, animationMode_, animationSpeed_, 0.0f, loop, blocking);
     }
 
     void Model::StopAnimation()
     {
         animationPlaying_ = false;
         activeAnimation_ = -1;
+        clearBlocking();
+        tryPlayQueued();
     }
 
     void Model::SetAnimationSpeed(float speed)
@@ -595,28 +666,46 @@ namespace CTX
         {
             if (activeAnimation_ >= 0 && activeAnimation_ < static_cast<int>(modelFile_->Animations.size()))
             {
+                const float endTime = getAnimationEndTime();
                 animationTime_ += deltaSeconds * animationSpeed_;
+
+                if (loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
+                {
+                    // Wrap around to keep looping.
+                    animationTime_ = std::fmod(animationTime_, endTime);
+                }
+                else if (!loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
+                {
+                    // Clamp to the end and stop playing.
+                    animationTime_ = endTime;
+                    animationPlaying_ = false;
+                }
+
                 modelState_->CalculateAnimationFrameAndFraction(animationMode_, animationTime_);
                 OVRFW::ApplyAnimation(*modelState_, activeAnimation_);
                 recalculateModelTransforms();
                 advanced = true;
 
-                if (singleShot_ && animationMode_ == OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD)
+                if (!animationPlaying_)
                 {
-                    const float endTime = getAnimationEndTime();
-                    if (endTime > 0.0f && animationTime_ >= endTime)
-                    {
-                        animationPlaying_ = false;
-                    }
+                    clearBlocking();
+                    tryPlayQueued();
                 }
             }
             else
             {
                 animationPlaying_ = false;
+                clearBlocking();
+                tryPlayQueued();
             }
         }
 
         updatePose(advanced);
+
+        if (!animationPlaying_)
+        {
+            tryPlayQueued();
+        }
     }
 
     void Model::emitSurfaces(std::vector<OVRFW::ovrDrawSurface> &surfaces)
