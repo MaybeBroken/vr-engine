@@ -508,6 +508,7 @@ namespace CTX
         if (isBlockedForNewAnimation(blocking))
         {
             playNext_ = req; // keep only the most recent request
+            requestBreakLoopAtCycleEnd();
             return false;
         }
 
@@ -517,6 +518,7 @@ namespace CTX
         loopEnabled_ = loop;
         blockingMode_ = blocking;
         localBlockActive_ = (blocking == Blocking::Local || blocking == Blocking::Global);
+        breakLoopAfterCycle_ = false;
         if (blocking == Blocking::Global)
         {
             globalBlockActive_ = true;
@@ -605,6 +607,7 @@ namespace CTX
 
         blockingMode_ = Blocking::None;
         localBlockActive_ = false;
+        breakLoopAfterCycle_ = false;
     }
 
     void Model::tryPlayQueued()
@@ -618,6 +621,16 @@ namespace CTX
         PendingAnimation pending = *playNext_;
         playNext_.reset();
         PlayAnimationByIndex(pending.index, pending.mode, pending.speed, pending.startTime, pending.loop, pending.blocking);
+    }
+
+    void Model::requestBreakLoopAtCycleEnd()
+    {
+        // If this model owns the block and is looping, schedule a loop break at the end
+        // of the current cycle so queued animations can proceed.
+        if (animationPlaying_ && loopEnabled_ && (blockingMode_ == Blocking::Local || blockingMode_ == Blocking::Global))
+        {
+            breakLoopAfterCycle_ = true;
+        }
     }
 
     bool Model::NextAnimation(bool loop, Blocking blocking)
@@ -671,8 +684,18 @@ namespace CTX
 
                 if (loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
                 {
-                    // Wrap around to keep looping.
-                    animationTime_ = std::fmod(animationTime_, endTime);
+                    if (breakLoopAfterCycle_ && playNext_.has_value())
+                    {
+                        // Finish the current loop once, then break and hand off to queued animation.
+                        animationTime_ = endTime;
+                        animationPlaying_ = false;
+                        loopEnabled_ = false;
+                    }
+                    else
+                    {
+                        // Wrap around to keep looping.
+                        animationTime_ = std::fmod(animationTime_, endTime);
+                    }
                 }
                 else if (!loopEnabled_ && endTime > 0.0f && animationTime_ >= endTime)
                 {

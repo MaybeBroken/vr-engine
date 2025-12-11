@@ -22,6 +22,7 @@
 // --------
 #include "CTX.h"
 #include "OVR_Math.h"
+#include <algorithm>
 #include <array>
 #include <string>
 // --------   doesn't interfere with anything; just for syntax help in this injector file
@@ -42,18 +43,15 @@ virtual bool AppInit(const xrJava *context) override
         bool startOnSceneInit;
     };
 
-    static const std::array<AnimationStep, 10> animationSteps = {{
-        {0, CTX::Blocking::None, true, true},
-        {1, CTX::Blocking::None, false, false},
+    static const std::array<AnimationStep, 5> animationSteps = {{
+        {0, CTX::Blocking::Local, true, true},
+        {1, CTX::Blocking::Local, false, false},
         {2, CTX::Blocking::None, true, false}, // custom non-anim step
         {3, CTX::Blocking::None, true, false},
         {4, CTX::Blocking::None, false, false},
     }};
     static std::array<std::string, 5> uiPanels = {"0", "1", "2", "3", "4"};
     static size_t currentAnimationStep = 0;
-    (void)animationSteps;
-    (void)currentAnimationStep;
-
     if (fileSys)
     {
         static CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
@@ -207,28 +205,128 @@ virtual bool AppInit(const xrJava *context) override
 
         ctx_->Bind(CTX::Action::ButtonA, [&](const CTX::ActionEvent &e)
                    {
-            if (e.active && heightmapModel.HasAnimations())
+            if (!e.active)
             {
+                return;
+            }
+            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
+            auto playStep = [&](size_t stepIndex, bool forward)
+            {
+                if (animationSteps.empty() || stepIndex >= animationSteps.size())
+                {
+                    return false;
+                }
+                const auto &step = animationSteps[stepIndex];
+                const bool hasAnimations = heightmapModel.HasAnimations();
+                if (hasAnimations && step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+                {
+                    return heightmapModel.PlayAnimationByIndex(
+                        step.animIndex,
+                        step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
+                        1.0f,
+                        0.0f,
+                        step.loop,
+                        step.blocking);
+                }
+
+                // Fallback: drive Next/Prev when explicit index is invalid or animations missing.
+                if (!hasAnimations)
+                {
+                    return false;
+                }
+                return forward ? heightmapModel.NextAnimation(step.loop, step.blocking)
+                               : heightmapModel.PrevAnimation(step.loop, step.blocking);
+            };
+
+            const size_t nextStep = animationSteps.empty() ? currentAnimationStep : (currentAnimationStep + 1) % animationSteps.size();
+            const bool played = playStep(nextStep, true);
+            if (played)
+            {
+                currentAnimationStep = nextStep;
+                showCurrentPanel();
+            }
+            else if (heightmapModel.HasAnimations())
+            {
+                // Last-resort fallback: advance animation ring if custom step failed.
                 heightmapModel.NextAnimation(false, CTX::Blocking::None);
-                currentAnimationStep = (currentAnimationStep + 1) % uiPanels.size();
+                currentAnimationStep = nextStep;
                 showCurrentPanel();
             } });
 
         ctx_->Bind(CTX::Action::ButtonB, [&](const CTX::ActionEvent &e)
                    {
-            if (e.active && heightmapModel.HasAnimations())
+            if (!e.active)
+            {
+                return;
+            }
+
+            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
+            auto playStep = [&](size_t stepIndex, bool forward)
+            {
+                if (animationSteps.empty() || stepIndex >= animationSteps.size())
+                {
+                    return false;
+                }
+                const auto &step = animationSteps[stepIndex];
+                const bool hasAnimations = heightmapModel.HasAnimations();
+                if (hasAnimations && step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+                {
+                    return heightmapModel.PlayAnimationByIndex(
+                        step.animIndex,
+                        step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
+                        1.0f,
+                        0.0f,
+                        step.loop,
+                        step.blocking);
+                }
+
+                if (!hasAnimations)
+                {
+                    return false;
+                }
+                return forward ? heightmapModel.NextAnimation(step.loop, step.blocking)
+                               : heightmapModel.PrevAnimation(step.loop, step.blocking);
+            };
+
+            size_t prevStep = 0;
+            if (!animationSteps.empty())
+            {
+                prevStep = (currentAnimationStep == 0) ? animationSteps.size() - 1
+                                                      : (currentAnimationStep - 1) % animationSteps.size();
+            }
+            const bool played = playStep(prevStep, false);
+            if (played)
+            {
+                currentAnimationStep = prevStep;
+                showCurrentPanel();
+            }
+            else if (heightmapModel.HasAnimations())
             {
                 heightmapModel.PrevAnimation(false, CTX::Blocking::None);
-                if (currentAnimationStep == 0)
-                {
-                    currentAnimationStep = uiPanels.size() - 1;
-                }
-                else
-                {
-                    currentAnimationStep = (currentAnimationStep - 1) % uiPanels.size();
-                }
+                currentAnimationStep = prevStep;
                 showCurrentPanel();
             } });
+
+        // Kick off any step flagged for auto-start, choosing the first valid one.
+        auto itStart = std::find_if(animationSteps.begin(), animationSteps.end(), [](const AnimationStep &s)
+                                    { return s.startOnSceneInit; });
+        if (itStart != animationSteps.end())
+        {
+            const size_t idx = static_cast<size_t>(std::distance(animationSteps.begin(), itStart));
+            const auto &step = *itStart;
+            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
+            if (step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+            {
+                heightmapModel.PlayAnimationByIndex(step.animIndex,
+                                                    step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
+                                                    1.0f,
+                                                    0.0f,
+                                                    step.loop,
+                                                    step.blocking);
+                currentAnimationStep = idx;
+                showCurrentPanel();
+            }
+        }
     }
     // APP_INIT_MOD_EXIT
     return true;

@@ -153,6 +153,7 @@ namespace CTX
         bool loopEnabled_ = true;
         Blocking blockingMode_ = Blocking::None;
         bool localBlockActive_ = false;
+        bool breakLoopAfterCycle_ = false;
         std::unique_ptr<OVRFW::ModelState> modelState_;
         // Visibility mask per node; 1 = visible, 0 = hidden.
         std::vector<uint8_t> nodeVisibility_;
@@ -174,6 +175,7 @@ namespace CTX
         bool isBlockedForNewAnimation(Blocking requested) const;
         void clearBlocking();
         void tryPlayQueued();
+        void requestBreakLoopAtCycleEnd();
 
         void recalculateModelTransforms();
         void updateJointsForSkin(int skinIndex);

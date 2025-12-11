@@ -5,8 +5,11 @@ This is a program made to compile VR projects into C++ and generate the necessar
 import glob
 import os
 import pathlib
+import random
 import shutil
 import sys
+import threading
+import time
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
@@ -26,6 +29,29 @@ PROJECTS_DIR = (SCRIPT_DIR / "projects").resolve()
 
 C_FILES = "Src"
 ASSETS_DIR = "assets"
+
+old_print = print
+messages = []
+
+
+def print(*args, **kwargs):
+    """Custom print function to flush output immediately."""
+    messages.append((args, kwargs))
+
+
+def _th():
+    global messages
+    while True:
+        unread_messages = messages.copy()
+        for args, kwargs in unread_messages:
+            time.sleep(random.uniform(0.01, 0.05))
+            old_print(*args, **kwargs)
+
+        messages = [m for m in messages if m not in unread_messages]
+        time.sleep(0.1)
+
+
+threading.Thread(target=_th, daemon=True).start()
 
 
 def str_format(s: str) -> str:
@@ -500,14 +526,16 @@ def open_android_studio(project_path: pathlib.Path):
     import sys
     import psutil
 
-    for proc in psutil.process_iter(['pid', 'name']):
+    for proc in psutil.process_iter(["pid", "name"]):
         try:
-            process_name = proc.info['name']
+            process_name = proc.info["name"]
             if process_name:
                 if sys.platform == "win32" and "studio64.exe" in process_name:
                     print("Android Studio is already running.")
                     return
-                elif sys.platform == "darwin" and ("Android Studio" in process_name or "studio" in process_name):
+                elif sys.platform == "darwin" and (
+                    "Android Studio" in process_name or "studio" in process_name
+                ):
                     print("Android Studio is already running.")
                     return
                 elif sys.platform == "linux" and "studio.sh" in process_name:
