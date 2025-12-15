@@ -367,9 +367,9 @@ namespace CTX
         }
 
         // Lighting defaults (match SimpleGlbRenderer)
-        specularDir_ = OVR::Vector3f(0.75f, -0.5f, 0.0f);
-        specularColor_ = OVR::Vector3f(1.0f, 0.95f, 0.8f) * 0.75f;
-        ambientColor_ = OVR::Vector3f(1.0f, 1.0f, 1.0f) * 0.75f;
+        specularDir_ = OVR::Vector3f(0.75f, -0.65f, 0.0f);
+        specularColor_ = OVR::Vector3f(1.0f, 0.95f, 0.95f) * 0.575f;
+        ambientColor_ = OVR::Vector3f(1.0f, 1.0f, 1.0f) * 0.6f;
 
         animationPlaying_ = false;
         activeAnimation_ = -1;

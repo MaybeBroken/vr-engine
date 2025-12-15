@@ -432,10 +432,10 @@ public:
         {
             controllerRenderL_.Render(out.Surfaces);
         }
-        if (in.RightRemoteTracked)
-        {
-            controllerRenderR_.Render(out.Surfaces);
-        }
+        // if (in.RightRemoteTracked)
+        // {
+        //     controllerRenderR_.Render(out.Surfaces);
+        // }
         if (ctx_)
         {
             ctx_->RenderAll(out.Surfaces);

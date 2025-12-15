@@ -34,7 +34,7 @@ virtual bool AppInit(const xrJava *context) override
     // APP_INIT_MOD_ENTRY
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
     // load model paths
-    std::string heightmapPath = "apk:///assets/Gettysburg_heightmap.glb";
+    std::string heightmapPath = "apk:///assets/Gettysburg.glb";
     std::string handUIPath = "apk:///assets/Gettysburg_UI.glb";
     struct AnimationStep
     {
@@ -44,19 +44,43 @@ virtual bool AppInit(const xrJava *context) override
         bool startOnSceneInit;
     };
 
-    static const std::array<AnimationStep, 5> animationSteps = {{
-        {0, CTX::Blocking::Local, true, true},
+    static const std::array<AnimationStep, 16> animationSteps = {{
+        // animIndex, blocking, loop, startOnSceneInit
+        {0, CTX::Blocking::Local, false, true},
         {1, CTX::Blocking::Local, false, false},
-        {2, CTX::Blocking::Local, true, false}, // custom non-anim step
-        {3, CTX::Blocking::Local, true, false},
+        {2, CTX::Blocking::Local, false, false},
+        {3, CTX::Blocking::Local, false, false},
         {4, CTX::Blocking::Local, false, false},
+        {5, CTX::Blocking::Local, false, false},
+        {6, CTX::Blocking::Local, false, false},
+        {7, CTX::Blocking::Local, false, false},
+        {8, CTX::Blocking::Local, false, false},
+        {9, CTX::Blocking::Local, false, false},
+        {10, CTX::Blocking::Local, false, false},
+        {11, CTX::Blocking::Local, false, false},
+        {12, CTX::Blocking::Local, false, false},
+        {13, CTX::Blocking::Local, false, false},
+        {14, CTX::Blocking::Local, false, false},
+        {15, CTX::Blocking::Local, false, false}, // copy of 0, to loop back and reset scene
     }};
-    static std::array<std::string, 5> uiPanels = {
-        "0",
+    static std::array<std::string, 16> uiPanels = {
+        // panel names
         "1",
         "2",
         "3",
         "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
     };
     static size_t currentAnimationStep = 0;
     lastRightPose = OVR::Vector3f(0.0f);
