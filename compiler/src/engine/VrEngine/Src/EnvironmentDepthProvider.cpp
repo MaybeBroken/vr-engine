@@ -24,10 +24,10 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
     xrGetInstanceProcAddr(instance_, "xrReleaseEnvironmentDepthSwapchainImageMETA", (PFN_xrVoidFunction *)&pfnReleaseImage_);
     xrGetInstanceProcAddr(instance_, "xrGetEnvironmentDepthSwapchainStateMETA", (PFN_xrVoidFunction *)&pfnGetSwapchainState_);
     xrGetInstanceProcAddr(instance_, "xrAcquireEnvironmentDepthImageMETA", (PFN_xrVoidFunction *)&pfnAcquireImageOld_);
-    // Old v1 API (frame-based)
-    #if defined(XR_TYPE_ENVIRONMENT_DEPTH_FRAME_STATE_META)
+// Old v1 API (frame-based)
+#if defined(XR_TYPE_ENVIRONMENT_DEPTH_FRAME_STATE_META)
     xrGetInstanceProcAddr(instance_, "xrGetEnvironmentDepthFrameStateMETA", (PFN_xrVoidFunction *)&pfnGetFrameState_);
-    #endif
+#endif
 
     // Detect API availability: prefer new swapchain acquire/release; otherwise fall back to legacy
     const bool newApiAvailable = (pfnCreateProvider_ && pfnCreateSwapchain_ && pfnEnumSwapchainImages_ && pfnAcquireImage_ && pfnReleaseImage_);
@@ -181,8 +181,10 @@ void EnvironmentDepthProvider::Shutdown()
 
 bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
 {
-    if (!supported_ && !useOldFrameApi_)
+    if (!supported_ && !useOldFrameApi_ && apiMode_ == DepthApiMode::kUnknown)
+    {
         return false;
+    }
 
     switch (apiMode_)
     {

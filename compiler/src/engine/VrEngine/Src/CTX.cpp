@@ -23,6 +23,7 @@ namespace CTX
     attribute highp vec3 Normal;
     attribute highp vec2 TexCoord;
     attribute highp vec4 JointIndices;
+    attribute highp vec4 JointWeights;
 
     varying lowp vec3 oEye;
     varying lowp vec3 oNormal;
@@ -49,18 +50,24 @@ namespace CTX
         m[2].x * v.x + m[2].y * v.y + m[2].z * v.z );
     }
 
-    void main()
-    {
-            highp vec4 localPos = jb.Joints[int(JointIndices.x)] * Position;
+        void main()
+        {
+            // Linear blend skinning with up to 4 joints.
+            highp mat4 skinMat = jb.Joints[int(JointIndices.x)] * JointWeights.x;
+            skinMat += jb.Joints[int(JointIndices.y)] * JointWeights.y;
+            skinMat += jb.Joints[int(JointIndices.z)] * JointWeights.z;
+            skinMat += jb.Joints[int(JointIndices.w)] * JointWeights.w;
+
+            highp vec4 localPos = skinMat * Position;
             gl_Position = TransformVertex( localPos );
             highp vec3 eye = transposeMultiply(sm.ViewMatrix[VIEW_ID],
-                                                                                    -vec3(sm.ViewMatrix[VIEW_ID][3]));
+                                                -vec3(sm.ViewMatrix[VIEW_ID][3]));
             oEye = normalize(eye - vec3( ModelMatrix * localPos ));
-            highp vec3 iNormal = multiply(jb.Joints[int(JointIndices.x)], Normal);
+            highp vec3 iNormal = multiply(skinMat, Normal);
             oNormal = normalize(multiply(ModelMatrix,  iNormal));
 
             oTexCoord = TexCoord;
-    }
+        }
     )glsl";
 
         static const char *Fragment = R"glsl(

@@ -583,6 +583,9 @@ class ProjectViewer(QWidget):
         self.toolbar.addAction(self.showConsoleAction)
         self.layout.addWidget(self.toolbar)
 
+        # Keep root cached so file model does not walk the entire filesystem.
+        self.project_root = os.path.abspath(os.path.join("projects", self.project_name))
+
         # Header row: keep fixed height so it doesn't expand vertically
         headerWidget = QWidget(self)
         headerWidget.setObjectName("headerRow")
@@ -622,7 +625,7 @@ class ProjectViewer(QWidget):
 
         self.fsModel = QFileSystemModel(self)
         self.fsModel.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot)
-        self.fsModel.setRootPath("")
+        self.fsModel.setRootPath(self.project_root)
 
         class FileFilterProxy(QSortFilterProxyModel):
             def __init__(self, parent, root_getter):
@@ -846,7 +849,6 @@ class ProjectViewer(QWidget):
         self.highlighter = CppHighlighter(self.editor.document())
 
         # State
-        self.project_root = os.path.abspath(os.path.join("projects", self.project_name))
         self.currentFilePath = None
         self._dirty = False
 
@@ -943,6 +945,10 @@ class ProjectViewer(QWidget):
         super().closeEvent(e)
 
     def populateLists(self):
+        try:
+            self.fsModel.setRootPath(self.project_root)
+        except Exception:
+            pass
         root_idx = self.fsModel.index(self.project_root)
         proxy_root = self.proxyModel.mapFromSource(root_idx)
         self.tree.setRootIndex(proxy_root)
@@ -956,7 +962,7 @@ class ProjectViewer(QWidget):
                     self.tree.setExpanded(pidx, True)
 
     def _refreshTree(self):
-        self.fsModel.setRootPath("")
+        self.fsModel.setRootPath(self.project_root)
         self.populateLists()
 
     def _openWithCode(self):
@@ -1284,6 +1290,9 @@ class ProjectViewer(QWidget):
         if img.isNull():
             self._showInfo(path, {"type": "image", "error": reader.errorString()})
             return
+        max_dim = 4096
+        if img.width() > max_dim or img.height() > max_dim:
+            img = img.scaled(max_dim, max_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         pix = QPixmap.fromImage(img)
         self.imageLabel.setPixmap(pix)
         self.imageLabel.adjustSize()

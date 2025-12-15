@@ -29,6 +29,7 @@ Authors     :   Peter Chan
 #include "ModelFile.h"
 
 #include "Misc/Log.h"
+#include <unordered_set>
 
 using OVR::OVRMath_Lerp;
 using OVR::Quatf;
@@ -213,8 +214,13 @@ void ApplyAnimation(ModelState& modelState, int animationIndex) {
         } else {
             ALOGW("Bad animation path on channel '%s'", animation.name.c_str());
         }
+    }
 
-        nodeState.CalculateLocalTransform();
+    // Rebuild local transforms for all nodes after animation sampling so every node
+    // (including those driven by multiple channels) has an updated TRS before we
+    // recalculate global matrices and joints.
+    for (auto& ns : modelState.nodeStates) {
+        ns.CalculateLocalTransform();
     }
 }
 
