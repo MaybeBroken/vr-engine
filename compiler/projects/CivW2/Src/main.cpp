@@ -35,7 +35,7 @@ virtual bool AppInit(const xrJava *context) override
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
     // load model paths
     std::string heightmapPath = "apk:///assets/Gettysburg.glb";
-    std::string handUIPath = "apk:///assets/Gettysburg_UI.glb";
+    std::string handUIPath = "apk:///assets/GettysburgUI.glb";
     struct AnimationStep
     {
         int animIndex;

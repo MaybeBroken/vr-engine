@@ -569,18 +569,44 @@ namespace CTX
         return modelFile_ ? static_cast<int>(modelFile_->Animations.size()) : 0;
     }
 
-    float Model::getAnimationEndTime() const
+    float Model::getAnimationEndTime(int animationIndex) const
     {
         if (!modelFile_)
             return 0.0f;
-        float endTime = modelFile_->animationEndTime;
-        if (endTime > 0.0f)
-            return endTime;
 
-        // Fallback: derive from timelines
-        for (const auto &tl : modelFile_->AnimationTimeLines)
+        auto endTimeForAnimation = [&](int animIdx) {
+            if (animIdx < 0 || animIdx >= static_cast<int>(modelFile_->Animations.size()))
+            {
+                return 0.0f;
+            }
+
+            const auto &anim = modelFile_->Animations[animIdx];
+            float end = 0.0f;
+            for (const auto &sampler : anim.samplers)
+            {
+                const int timelineIndex = sampler.timeLineIndex;
+                if (timelineIndex >= 0 &&
+                    timelineIndex < static_cast<int>(modelFile_->AnimationTimeLines.size()))
+                {
+                    end = std::max(end, modelFile_->AnimationTimeLines[timelineIndex].endTime);
+                }
+            }
+            return end;
+        };
+
+        float endTime = endTimeForAnimation(animationIndex);
+        if (endTime <= 0.0f)
         {
-            endTime = std::max(endTime, tl.endTime);
+            endTime = modelFile_->animationEndTime;
+        }
+
+        if (endTime <= 0.0f)
+        {
+            // Fallback: derive from timelines
+            for (const auto &tl : modelFile_->AnimationTimeLines)
+            {
+                endTime = std::max(endTime, tl.endTime);
+            }
         }
         return endTime;
     }
@@ -688,7 +714,7 @@ namespace CTX
         {
             if (activeAnimation_ >= 0 && activeAnimation_ < static_cast<int>(modelFile_->Animations.size()))
             {
-                const float endTime = getAnimationEndTime();
+                const float endTime = getAnimationEndTime(activeAnimation_);
                 const bool hasEnd = endTime > 0.0f;
                 animationTime_ += deltaSeconds * animationSpeed_;
 
