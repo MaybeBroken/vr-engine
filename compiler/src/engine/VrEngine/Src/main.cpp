@@ -417,7 +417,6 @@ public:
                 {
                     m->setEnvironmentDepthEnabled(false);
                 }
-                ALOG("Environment depth not available for this frame.");
             }
         }
         // UPDATE_MOD_EXIT

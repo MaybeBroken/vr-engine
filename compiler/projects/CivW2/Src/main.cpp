@@ -22,9 +22,12 @@
 // --------
 #include "CTX.h"
 #include "OVR_Math.h"
+#include "Misc/Log.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <vector>
+#include <utility>
 #include <string>
 // --------   doesn't interfere with anything; just for syntax help in this injector file
 
@@ -34,7 +37,8 @@ virtual bool AppInit(const xrJava *context) override
     // APP_INIT_MOD_ENTRY
     auto fileSys = std::unique_ptr<OVRFW::ovrFileSys>(OVRFW::ovrFileSys::Create(*context));
     // load model paths
-    std::string heightmapPath = "apk:///assets/Gettysburg.glb";
+    std::string baseModelPath = "apk:///assets/Gettysburg-";
+    std::string heightmapPath = "apk:///assets/Gettysburg-0.glb";
     std::string handUIPath = "apk:///assets/GettysburgUI.glb";
     struct AnimationStep
     {
@@ -43,26 +47,48 @@ virtual bool AppInit(const xrJava *context) override
         bool loop;
         bool startOnSceneInit;
     };
+    struct animatedFile
+    {
+        std::string path;
+        std::vector<AnimationStep> steps;
+        CTX::Model *model = nullptr;
+    };
 
-    static const std::array<AnimationStep, 16> animationSteps = {{
+    static const std::vector<AnimationStep> defaultAnimationSteps = {
         // animIndex, blocking, loop, startOnSceneInit
-        {0, CTX::Blocking::None, false, true},
-        {1, CTX::Blocking::None, false, false},
-        {2, CTX::Blocking::None, false, false},
-        {3, CTX::Blocking::None, false, false},
-        {4, CTX::Blocking::None, false, false},
-        {5, CTX::Blocking::None, false, false},
-        {6, CTX::Blocking::None, false, false},
-        {7, CTX::Blocking::None, false, false},
-        {8, CTX::Blocking::None, false, false},
-        {9, CTX::Blocking::None, false, false},
-        {10, CTX::Blocking::None, false, false},
-        {11, CTX::Blocking::None, false, false},
-        {12, CTX::Blocking::None, false, false},
-        {13, CTX::Blocking::None, false, false},
-        {14, CTX::Blocking::None, false, false},
-        {15, CTX::Blocking::None, false, false}, // copy of 0, to loop back and reset scene
-    }};
+        {0, CTX::Blocking::Local, false, true},
+        {1, CTX::Blocking::Local, false, false},
+        {2, CTX::Blocking::Local, false, false},
+        {3, CTX::Blocking::Local, false, false},
+        {4, CTX::Blocking::Local, false, false},
+        {5, CTX::Blocking::Local, false, false},
+        {6, CTX::Blocking::Local, false, false},
+        {7, CTX::Blocking::Local, false, false},
+        {8, CTX::Blocking::Local, false, false},
+        {9, CTX::Blocking::Local, false, false},
+        {10, CTX::Blocking::Local, false, false},
+        {11, CTX::Blocking::Local, false, false},
+        {12, CTX::Blocking::Local, false, false},
+        {13, CTX::Blocking::Local, false, false},
+        {14, CTX::Blocking::Local, false, false},
+        {15, CTX::Blocking::Local, false, false}, // copy of 0, to loop back and reset scene
+    };
+    static std::vector<AnimationStep> animationSteps = defaultAnimationSteps;
+    static std::vector<animatedFile> animatedFiles;
+    if (animatedFiles.empty())
+    {
+        animatedFiles.reserve(35);
+        for (int af = 1; af < 36; ++af)
+        {
+            animatedFile file{};
+            file.path = baseModelPath + std::to_string(af) + ".glb";
+            file.steps = defaultAnimationSteps;
+            animatedFiles.push_back(std::move(file));
+        }
+    }
+
+    static std::vector<CTX::Model *> sceneModels;
+
     static std::array<std::string, 16> uiPanels = {
         // panel names
         "1",
@@ -86,15 +112,54 @@ virtual bool AppInit(const xrJava *context) override
     lastRightPose = OVR::Vector3f(0.0f);
     if (fileSys)
     {
-        static CTX::Model &heightmapModel = ctx_->LoadModel(*fileSys, heightmapPath);
-        heightmapModel.setPos(0.0f, -0.2f, -0.4f);
-        heightmapModel.setScale(0.2f);
-        heightmapModel.setHpr(0.0f, 0.0f, 0.0f);
+        const OVR::Vector3f initialPos(0.0f, -0.2f, -0.4f);
+        const float initialScale = 0.2f;
+        const float initialHeading = 0.0f;
 
-        static CTX::Model &handUIModel = ctx_->LoadModel(*fileSys, handUIPath);
-        handUIModel.setPos(0.0f, 0.0f, -0.2f);
-        handUIModel.setScale(0.3f);
-        handUIModel.setHpr(0.0f, 0.0f, 0.0f);
+        auto loadModelWithTransform = [&](const std::string &path, const OVR::Vector3f &pos, float scale, float headingDeg) -> CTX::Model *
+        {
+            CTX::Model &m = ctx_->LoadModel(*fileSys, path);
+            if (!m.isLoaded())
+            {
+                ALOGE("CTX load failed for %s", path.c_str());
+                // Keep the slot so we can diagnose counts; RenderAll will skip unloaded models.
+                return nullptr;
+            }
+            m.setPos(pos.x, pos.y, pos.z);
+            m.setScale(scale);
+            m.setHpr(headingDeg, 0.0f, 0.0f);
+            return &m;
+        };
+
+        CTX::Model *heightmapPtr = loadModelWithTransform(heightmapPath, initialPos, initialScale, initialHeading);
+        if (!heightmapPtr)
+        {
+            return false; // critical scene asset failed to load
+        }
+        CTX::Model &heightmapModel = *heightmapPtr;
+
+        sceneModels.clear();
+        sceneModels.reserve(animatedFiles.size() + 1);
+        sceneModels.push_back(&heightmapModel);
+
+        for (auto &af : animatedFiles)
+        {
+            if (af.model == nullptr)
+            {
+                af.model = loadModelWithTransform(af.path, initialPos, initialScale, initialHeading);
+            }
+            if (af.model && af.model->isLoaded())
+            {
+                sceneModels.push_back(af.model);
+            }
+        }
+
+        CTX::Model *handUIPtr = loadModelWithTransform(handUIPath, OVR::Vector3f(0.0f, 0.0f, -0.2f), 0.3f, 0.0f);
+        if (!handUIPtr)
+        {
+            return false; // UI missing; bail early so we notice
+        }
+        static CTX::Model &handUIModel = *handUIPtr;
         // hide all panels initially
         for (const auto &panel : uiPanels)
         {
@@ -102,6 +167,22 @@ virtual bool AppInit(const xrJava *context) override
         }
         handUIModel.setActiveNode("0", true); // ensure default panel is shown
         handUIRef = &handUIModel;
+
+        auto primaryModel = [&]() -> CTX::Model *
+        {
+            return sceneModels.empty() ? nullptr : sceneModels.front();
+        };
+
+        auto forEachModel = [&](auto &&fn)
+        {
+            for (auto *m : sceneModels)
+            {
+                if (m)
+                {
+                    fn(*m);
+                }
+            }
+        };
 
         // Demo gesture bindings: single-finger pinch moves; two-finger pinch scales+rotates+moves
         // Keep simple state for gesture processing
@@ -123,6 +204,12 @@ virtual bool AppInit(const xrJava *context) override
 
         auto applyTransform = [&]()
         {
+            auto *modelRef = primaryModel();
+            if (!modelRef)
+            {
+                return;
+            }
+
             // One-finger: move relative to hand delta since gesture start
             if (leftActive ^ rightActive)
             {
@@ -130,7 +217,8 @@ virtual bool AppInit(const xrJava *context) override
                 const OVR::Vector3f d = p - oneFingerStartHand;
                 const float gain = 1.0f;
                 OVR::Vector3f target = oneFingerModelStartPos + d * gain;
-                heightmapModel.setPos(target.x, target.y, target.z);
+                forEachModel([&](CTX::Model &m)
+                             { m.setPos(target.x, target.y, target.z); });
             }
             // Two-finger: scale, rotate heading, and move to center between fingers
             else if (leftActive && rightActive)
@@ -143,7 +231,8 @@ virtual bool AppInit(const xrJava *context) override
                 {
                     float scaleRatio = dist / twoFingerStartDistance;
                     float newScale = std::max(0.05f, twoFingerModelStartScale * scaleRatio);
-                    heightmapModel.setScale(newScale);
+                    forEachModel([&](CTX::Model &m)
+                                 { m.setScale(newScale); });
                 }
 
                 // Heading delta relative to start vector
@@ -152,12 +241,14 @@ virtual bool AppInit(const xrJava *context) override
                 OVR::Vector3f dstart = twoFingerStartRight - twoFingerStartLeft;
                 float headingRadStart = atan2f(dstart.x, dstart.z);
                 float headingDegDelta = (headingRadCur - headingRadStart) * (180.0f / MATH_FLOAT_PI);
-                heightmapModel.setHpr(twoFingerModelStartHeadingDeg + headingDegDelta, 0.0f, 0.0f);
+                forEachModel([&](CTX::Model &m)
+                             { m.setHpr(twoFingerModelStartHeadingDeg + headingDegDelta, 0.0f, 0.0f); });
 
                 // Move to center relative to start center
                 const OVR::Vector3f centerDelta = center - twoFingerStartCenter;
                 const OVR::Vector3f newPos = twoFingerModelStartPos + centerDelta;
-                heightmapModel.setPos(newPos.x, newPos.y, newPos.z);
+                forEachModel([&](CTX::Model &m)
+                             { m.setPos(newPos.x, newPos.y, newPos.z); });
             }
             else
             {
@@ -176,7 +267,10 @@ virtual bool AppInit(const xrJava *context) override
             if (leftActive && !wasLeftActive && !rightActive)
             {
                 oneFingerStartHand = leftPos;
-                oneFingerModelStartPos = heightmapModel.getPos();
+                if (auto *modelRef = primaryModel())
+                {
+                    oneFingerModelStartPos = modelRef->getPos();
+                }
             }
 
             // Two-finger start when right already active
@@ -186,9 +280,12 @@ virtual bool AppInit(const xrJava *context) override
                 twoFingerStartRight = rightPos;
                 twoFingerStartCenter = (twoFingerStartLeft + twoFingerStartRight) * 0.5f;
                 twoFingerStartDistance = (twoFingerStartLeft - twoFingerStartRight).Length();
-                twoFingerModelStartPos = heightmapModel.getPos();
-                twoFingerModelStartScale = heightmapModel.getScale().x;
-                twoFingerModelStartHeadingDeg = heightmapModel.getHpr().x;
+                if (auto *modelRef = primaryModel())
+                {
+                    twoFingerModelStartPos = modelRef->getPos();
+                    twoFingerModelStartScale = modelRef->getScale().x;
+                    twoFingerModelStartHeadingDeg = modelRef->getHpr().x;
+                }
             }
 
             applyTransform(); });
@@ -207,7 +304,10 @@ virtual bool AppInit(const xrJava *context) override
             if (rightActive && !wasRightActive && !leftActive)
             {
                 oneFingerStartHand = rightPos;
-                oneFingerModelStartPos = heightmapModel.getPos();
+                if (auto *modelRef = primaryModel())
+                {
+                    oneFingerModelStartPos = modelRef->getPos();
+                }
             }
 
             // Two-finger start when left already active
@@ -217,9 +317,12 @@ virtual bool AppInit(const xrJava *context) override
                 twoFingerStartRight = rightPos;
                 twoFingerStartCenter = (twoFingerStartLeft + twoFingerStartRight) * 0.5f;
                 twoFingerStartDistance = (twoFingerStartLeft - twoFingerStartRight).Length();
-                twoFingerModelStartPos = heightmapModel.getPos();
-                twoFingerModelStartScale = heightmapModel.getScale().x;
-                twoFingerModelStartHeadingDeg = heightmapModel.getHpr().x;
+                if (auto *modelRef = primaryModel())
+                {
+                    twoFingerModelStartPos = modelRef->getPos();
+                    twoFingerModelStartScale = modelRef->getScale().x;
+                    twoFingerModelStartHeadingDeg = modelRef->getHpr().x;
+                }
             }
 
             applyTransform(); });
@@ -238,52 +341,66 @@ virtual bool AppInit(const xrJava *context) override
             }
         };
 
+        auto playStepOnModel = [&](CTX::Model &model, size_t stepIndex, bool forward) -> bool
+        {
+            if (animationSteps.empty() || stepIndex >= animationSteps.size())
+            {
+                return false;
+            }
+            const auto &step = animationSteps[stepIndex];
+            const auto animationCount = static_cast<size_t>(std::max(0, model.GetAnimationCount()));
+            const bool hasAnimations = model.HasAnimations();
+            if (hasAnimations && step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+            {
+                return model.PlayAnimationByIndex(
+                    step.animIndex,
+                    step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
+                    1.0f,
+                    0.0f,
+                    step.loop,
+                    step.blocking);
+            }
+
+            if (!hasAnimations)
+            {
+                return false;
+            }
+            return forward ? model.NextAnimation(step.loop, step.blocking)
+                           : model.PrevAnimation(step.loop, step.blocking);
+        };
+
+        auto playStepAll = [&](size_t stepIndex, bool forward) -> bool
+        {
+            bool anyPlayed = false;
+            forEachModel([&](CTX::Model &model)
+                         { anyPlayed = playStepOnModel(model, stepIndex, forward) || anyPlayed; });
+            return anyPlayed;
+        };
+
+        auto anyModelHasAnimations = [&]() -> bool
+        {
+            return std::any_of(sceneModels.begin(), sceneModels.end(), [](CTX::Model *m)
+                               { return m && m->HasAnimations(); });
+        };
+
         ctx_->Bind(CTX::Action::ButtonA, [&](const CTX::ActionEvent &e)
                    {
             if (!e.active)
             {
                 return;
             }
-            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
-            auto playStep = [&](size_t stepIndex, bool forward)
-            {
-                if (animationSteps.empty() || stepIndex >= animationSteps.size())
-                {
-                    return false;
-                }
-                const auto &step = animationSteps[stepIndex];
-                const bool hasAnimations = heightmapModel.HasAnimations();
-                if (hasAnimations && step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
-                {
-                    return heightmapModel.PlayAnimationByIndex(
-                        step.animIndex,
-                        step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
-                        1.0f,
-                        0.0f,
-                        step.loop,
-                        step.blocking);
-                }
-
-                // Fallback: drive Next/Prev when explicit index is invalid or animations missing.
-                if (!hasAnimations)
-                {
-                    return false;
-                }
-                return forward ? heightmapModel.NextAnimation(step.loop, step.blocking)
-                               : heightmapModel.PrevAnimation(step.loop, step.blocking);
-            };
-
             const size_t nextStep = animationSteps.empty() ? currentAnimationStep : (currentAnimationStep + 1) % animationSteps.size();
-            const bool played = playStep(nextStep, true);
+            const bool played = playStepAll(nextStep, true);
             if (played)
             {
                 currentAnimationStep = nextStep;
                 showCurrentPanel();
             }
-            else if (heightmapModel.HasAnimations())
+            else if (anyModelHasAnimations())
             {
                 // Last-resort fallback: advance animation ring if custom step failed.
-                heightmapModel.NextAnimation(false, CTX::Blocking::None);
+                forEachModel([&](CTX::Model &model)
+                             { model.NextAnimation(false, CTX::Blocking::None); });
                 currentAnimationStep = nextStep;
                 showCurrentPanel();
             } });
@@ -295,49 +412,22 @@ virtual bool AppInit(const xrJava *context) override
                 return;
             }
 
-            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
-            auto playStep = [&](size_t stepIndex, bool forward)
-            {
-                if (animationSteps.empty() || stepIndex >= animationSteps.size())
-                {
-                    return false;
-                }
-                const auto &step = animationSteps[stepIndex];
-                const bool hasAnimations = heightmapModel.HasAnimations();
-                if (hasAnimations && step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
-                {
-                    return heightmapModel.PlayAnimationByIndex(
-                        step.animIndex,
-                        step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
-                        1.0f,
-                        0.0f,
-                        step.loop,
-                        step.blocking);
-                }
-
-                if (!hasAnimations)
-                {
-                    return false;
-                }
-                return forward ? heightmapModel.NextAnimation(step.loop, step.blocking)
-                               : heightmapModel.PrevAnimation(step.loop, step.blocking);
-            };
-
             size_t prevStep = 0;
             if (!animationSteps.empty())
             {
                 prevStep = (currentAnimationStep == 0) ? animationSteps.size() - 1
                                                       : (currentAnimationStep - 1) % animationSteps.size();
             }
-            const bool played = playStep(prevStep, false);
+            const bool played = playStepAll(prevStep, false);
             if (played)
             {
                 currentAnimationStep = prevStep;
                 showCurrentPanel();
             }
-            else if (heightmapModel.HasAnimations())
+            else if (anyModelHasAnimations())
             {
-                heightmapModel.PrevAnimation(false, CTX::Blocking::None);
+                forEachModel([&](CTX::Model &model)
+                             { model.PrevAnimation(false, CTX::Blocking::None); });
                 currentAnimationStep = prevStep;
                 showCurrentPanel();
             } });
@@ -349,15 +439,22 @@ virtual bool AppInit(const xrJava *context) override
         {
             const size_t idx = static_cast<size_t>(std::distance(animationSteps.begin(), itStart));
             const auto &step = *itStart;
-            const auto animationCount = static_cast<size_t>(std::max(0, heightmapModel.GetAnimationCount()));
-            if (step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+            bool started = false;
+            forEachModel([&](CTX::Model &model)
+                         {
+                             const auto animationCount = static_cast<size_t>(std::max(0, model.GetAnimationCount()));
+                             if (step.animIndex >= 0 && static_cast<size_t>(step.animIndex) < animationCount)
+                             {
+                                 started = model.PlayAnimationByIndex(
+                                    step.animIndex,
+                                    step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
+                                    1.0f,
+                                    0.0f,
+                                    step.loop,
+                                    step.blocking) || started;
+                             } });
+            if (started)
             {
-                heightmapModel.PlayAnimationByIndex(step.animIndex,
-                                                    step.loop ? OVRFW::MODEL_ANIMATION_TIME_TYPE_LOOP_FORWARD : OVRFW::MODEL_ANIMATION_TIME_TYPE_ONCE_FORWARD,
-                                                    1.0f,
-                                                    0.0f,
-                                                    step.loop,
-                                                    step.blocking);
                 currentAnimationStep = idx;
                 showCurrentPanel();
             }
