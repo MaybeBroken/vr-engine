@@ -8,6 +8,7 @@
 #include "OVR_Math.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace CTX
 {
@@ -576,6 +577,48 @@ namespace CTX
         return modelFile_ ? static_cast<int>(modelFile_->Animations.size()) : 0;
     }
 
+    float Model::getAnimationStartTime(int animationIndex) const
+    {
+        if (!modelFile_)
+        {
+            return 0.0f;
+        }
+
+        auto startTimeForAnimation = [&](int animIdx) {
+            float start = std::numeric_limits<float>::max();
+            if (animIdx >= 0 && animIdx < static_cast<int>(modelFile_->Animations.size()))
+            {
+                const auto &anim = modelFile_->Animations[animIdx];
+                for (const auto &sampler : anim.samplers)
+                {
+                    const int timelineIndex = sampler.timeLineIndex;
+                    if (timelineIndex >= 0 &&
+                        timelineIndex < static_cast<int>(modelFile_->AnimationTimeLines.size()))
+                    {
+                        start = std::min(start, modelFile_->AnimationTimeLines[timelineIndex].startTime);
+                    }
+                }
+            }
+            return start;
+        };
+
+        float startTime = startTimeForAnimation(animationIndex);
+        if (startTime == std::numeric_limits<float>::max())
+        {
+            // Fallback: derive from all timelines in the file.
+            for (const auto &tl : modelFile_->AnimationTimeLines)
+            {
+                startTime = std::min(startTime, tl.startTime);
+            }
+        }
+
+        if (startTime == std::numeric_limits<float>::max() || startTime < 0.0f)
+        {
+            return 0.0f;
+        }
+        return startTime;
+    }
+
     float Model::getAnimationEndTime(int animationIndex) const
     {
         if (!modelFile_)
@@ -721,44 +764,47 @@ namespace CTX
         {
             if (activeAnimation_ >= 0 && activeAnimation_ < static_cast<int>(modelFile_->Animations.size()))
             {
-                const float endTime = getAnimationEndTime(activeAnimation_);
-                const bool hasEnd = endTime > 0.0f;
+                const float clipStart = getAnimationStartTime(activeAnimation_);
+                const float clipEnd = getAnimationEndTime(activeAnimation_);
+                const float clipDuration = std::max(0.0f, clipEnd - clipStart);
+                const bool hasDuration = clipDuration > 0.0f;
                 animationTime_ += deltaSeconds * animationSpeed_;
 
-                if (loopEnabled_ && hasEnd && animationTime_ >= endTime)
+                if (loopEnabled_ && hasDuration && animationTime_ >= clipDuration)
                 {
                     if (breakLoopAfterCycle_ && playNext_.has_value())
                     {
                         // Finish the current loop once, then break and hand off to queued animation.
-                        animationTime_ = endTime;
+                        animationTime_ = clipDuration;
                         animationPlaying_ = false;
                         loopEnabled_ = false;
                     }
                     else
                     {
                         // Wrap around to keep looping.
-                        animationTime_ = std::fmod(animationTime_, endTime);
+                        animationTime_ = std::fmod(animationTime_, clipDuration);
                     }
                 }
-                else if (loopEnabled_ && !hasEnd && breakLoopAfterCycle_ && playNext_.has_value())
+                else if (loopEnabled_ && !hasDuration && breakLoopAfterCycle_ && playNext_.has_value())
                 {
                     // No known end time; break immediately to release the block and play the queue.
                     animationPlaying_ = false;
                     loopEnabled_ = false;
                 }
-                else if (!loopEnabled_ && hasEnd && animationTime_ >= endTime)
+                else if (!loopEnabled_ && hasDuration && animationTime_ >= clipDuration)
                 {
                     // Clamp to the end and stop playing.
-                    animationTime_ = endTime;
+                    animationTime_ = clipDuration;
                     animationPlaying_ = false;
                 }
-                else if (!loopEnabled_ && !hasEnd)
+                else if (!loopEnabled_ && !hasDuration)
                 {
                     // Unknown duration for non-looping clip: stop after this frame to avoid hanging.
                     animationPlaying_ = false;
                 }
 
-                modelState_->CalculateAnimationFrameAndFraction(animationMode_, animationTime_);
+                const float timelineTime = clipStart + animationTime_;
+                modelState_->CalculateAnimationFrameAndFraction(animationMode_, timelineTime);
                 OVRFW::ApplyAnimation(*modelState_, activeAnimation_);
                 recalculateModelTransforms();
                 advanced = true;

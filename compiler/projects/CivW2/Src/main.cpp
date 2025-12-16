@@ -56,22 +56,22 @@ virtual bool AppInit(const xrJava *context) override
 
     static const std::vector<AnimationStep> defaultAnimationSteps = {
         // animIndex, blocking, loop, startOnSceneInit
-        {0, CTX::Blocking::Local, false, true},
-        {1, CTX::Blocking::Local, false, false},
-        {2, CTX::Blocking::Local, false, false},
-        {3, CTX::Blocking::Local, false, false},
-        {4, CTX::Blocking::Local, false, false},
-        {5, CTX::Blocking::Local, false, false},
-        {6, CTX::Blocking::Local, false, false},
-        {7, CTX::Blocking::Local, false, false},
-        {8, CTX::Blocking::Local, false, false},
-        {9, CTX::Blocking::Local, false, false},
-        {10, CTX::Blocking::Local, false, false},
-        {11, CTX::Blocking::Local, false, false},
-        {12, CTX::Blocking::Local, false, false},
-        {13, CTX::Blocking::Local, false, false},
-        {14, CTX::Blocking::Local, false, false},
-        {15, CTX::Blocking::Local, false, false}, // copy of 0, to loop back and reset scene
+        {0, CTX::Blocking::None, false, true},
+        {1, CTX::Blocking::None, false, false},
+        {2, CTX::Blocking::None, false, false},
+        {3, CTX::Blocking::None, false, false},
+        {4, CTX::Blocking::None, false, false},
+        {5, CTX::Blocking::None, false, false},
+        {6, CTX::Blocking::None, false, false},
+        {7, CTX::Blocking::None, false, false},
+        {8, CTX::Blocking::None, false, false},
+        {9, CTX::Blocking::None, false, false},
+        {10, CTX::Blocking::None, false, false},
+        {11, CTX::Blocking::None, false, false},
+        {12, CTX::Blocking::None, false, false},
+        {13, CTX::Blocking::None, false, false},
+        {14, CTX::Blocking::None, false, false},
+        {15, CTX::Blocking::None, false, false}, // copy of 0, to loop back and reset scene
     };
     static std::vector<AnimationStep> animationSteps = defaultAnimationSteps;
     static std::vector<animatedFile> animatedFiles;
@@ -91,6 +91,7 @@ virtual bool AppInit(const xrJava *context) override
 
     static std::array<std::string, 16> uiPanels = {
         // panel names
+        "0",
         "1",
         "2",
         "3",
@@ -105,8 +106,7 @@ virtual bool AppInit(const xrJava *context) override
         "12",
         "13",
         "14",
-        "15",
-        "16",
+        "14",
     };
     static size_t currentAnimationStep = 0;
     lastRightPose = OVR::Vector3f(0.0f);
@@ -165,7 +165,7 @@ virtual bool AppInit(const xrJava *context) override
         {
             handUIModel.setActiveNode(panel, false);
         }
-        handUIModel.setActiveNode("0", true); // ensure default panel is shown
+        handUIModel.setActiveNode(uiPanels[0], true); // ensure default panel is shown
         handUIRef = &handUIModel;
 
         auto primaryModel = [&]() -> CTX::Model *

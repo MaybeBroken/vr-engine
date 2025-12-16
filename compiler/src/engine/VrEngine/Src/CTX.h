@@ -113,6 +113,7 @@ namespace CTX
             depthFar_ = farMeters;
             dirty_ = true;
         }
+        float getAnimationStartTime(int animationIndex = -1) const;
         float getAnimationEndTime(int animationIndex = -1) const;
         void setEnvironmentDepthTextureSize(float width, float height)
         {
