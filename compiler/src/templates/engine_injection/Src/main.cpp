@@ -3,7 +3,7 @@
 // (The default mode is append (a)).
 
 // The json below is a reference of all possible injection points, the first word is the name you use for it,
-// what follows is the injection markers that can be found in the base engine file "XrSamples/VrEngine/Src/main.cpp"
+// what follows is the injection markers that can be found in the base engine file "file://./compiler/src/engine/VrEngine/Src/main.cpp".
 
 //"includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
 // "var_space": {"entry": VAR_SPACE_ENTRY, "exit": VAR_SPACE_EXIT},

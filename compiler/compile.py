@@ -5,11 +5,12 @@ This is a program made to compile VR projects into C++ and generate the necessar
 import glob
 import os
 import pathlib
-import random
 import shutil
 import sys
-import threading
-import time
+import json
+import base64
+from typing import Optional
+import atexit
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
@@ -25,33 +26,80 @@ except Exception:
         "Could not resolve template root path. Your installation is most like corrupted, or you have screwed with the file structure."
     )
 
-PROJECTS_DIR = (SCRIPT_DIR / "projects").resolve()
+PREF_PATH = pathlib.Path.home() / ".vr_engine_compiler" / "prefs.ini"
+PREF_PATH.parent.mkdir(parents=True, exist_ok=True)
+PREF_DEFAULTS = {
+    "project_root": "",
+    "project_root_confirmed": False,
+}
+
+
+def _default_project_root() -> pathlib.Path:
+    if sys.platform.startswith("win"):
+        return pathlib.Path.home() / "AppData" / "Local" / "VR-Engine-Projects"
+    return pathlib.Path.home() / ".vr_engine_projects"
+
+
+def _resolve_project_root(path_str: Optional[str]) -> pathlib.Path:
+    return pathlib.Path(path_str).expanduser() if path_str else _default_project_root()
+
+
+def _load_prefs() -> dict:
+    if not PREF_PATH.exists():
+        return PREF_DEFAULTS.copy()
+    try:
+        raw = PREF_PATH.read_bytes().strip()
+        if not raw:
+            return PREF_DEFAULTS.copy()
+        data = json.loads(base64.b64decode(raw))
+        for k, v in PREF_DEFAULTS.items():
+            data.setdefault(k, v)
+        return data
+    except Exception:
+        return PREF_DEFAULTS.copy()
+
+
+def _save_prefs(data: dict):
+    try:
+        PREF_PATH.write_bytes(base64.b64encode(json.dumps(data, indent=4).encode()))
+    except Exception:
+        pass
+
+
+pref_data = _load_prefs()
+PROJECTS_DIR = _resolve_project_root(pref_data.get("project_root"))
+PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+pref_data["project_root"] = str(PROJECTS_DIR)
+if not pref_data.get("project_root_confirmed"):
+    pref_data["project_root_confirmed"] = True
+_save_prefs(pref_data)
+
 
 C_FILES = "Src"
 ASSETS_DIR = "assets"
 
-old_print = print
-messages = []
+# old_print = print
+# messages = []
 
 
-def print(*args, **kwargs):
-    """Custom print function to flush output immediately."""
-    messages.append((args, kwargs))
+# def print(*args, **kwargs):
+#     """Custom print function to flush output immediately."""
+#     messages.append((args, kwargs))
 
 
-def _th():
-    global messages
-    while True:
-        unread_messages = messages.copy()
-        for args, kwargs in unread_messages:
-            time.sleep(random.uniform(0.01, 0.05))
-            old_print(*args, **kwargs)
+# def _th():
+#     global messages
+#     while True:
+#         unread_messages = messages.copy()
+#         for args, kwargs in unread_messages:
+#             # time.sleep(random.uniform(0.01, 0.05))
+#             old_print(*args, **kwargs)
 
-        messages = [m for m in messages if m not in unread_messages]
-        time.sleep(0.1)
+#         messages = [m for m in messages if m not in unread_messages]
+#         time.sleep(0.1)
 
 
-threading.Thread(target=_th, daemon=True).start()
+# threading.Thread(target=_th, daemon=True).start()
 
 
 def str_format(s: str) -> str:
@@ -487,6 +535,41 @@ class Compiler:
             "r",
         ) as f:
             manifest_content = f.read()
+        with open(
+            self.project_dir / "Projects/Android/local.properties",
+            "r",
+        ) as f:
+            local_properties_content = f.read()
+        if sys.platform == "win32":
+            local_properties_content = local_properties_content.replace(
+            "DIR",
+            str(
+                pathlib.Path.home()
+                / "AppData"
+                / "Local"
+                / "Android"
+                / "Sdk"
+            ).replace("\\", "\\\\")
+        )
+        elif sys.platform == "darwin":
+            local_properties_content = local_properties_content.replace(
+                "DIR",
+                str(
+                    pathlib.Path.home()
+                    / "Library"
+                    / "Android"
+                    / "sdk"
+                ),
+            )
+        elif sys.platform == "linux":
+            local_properties_content = local_properties_content.replace(
+                "DIR",
+                str(
+                    pathlib.Path.home()
+                    / "Android"
+                    / "Sdk"
+                ),
+            )
         manifest_content = manifest_content.replace(
             'android:value="VrEngine"',
             f'android:value="{self.project.name.replace("-", "_").replace(" ", "_")}"',

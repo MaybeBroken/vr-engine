@@ -1,10 +1,13 @@
+import json
+from pathlib import Path
 import threading
+import base64
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
-    QListWidget,
     QMessageBox,
     QLineEdit,
     QComboBox,
@@ -25,6 +28,12 @@ from PySide6.QtWidgets import (
     QFileSystemModel,
     QTreeWidgetItem,
     QFileDialog,
+    QGridLayout,
+    QFrame,
+    QToolButton,
+    QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
+    QListWidget,
 )
 from PySide6.QtGui import (
     QSyntaxHighlighter,
@@ -47,9 +56,12 @@ from PySide6.QtCore import (
     Qt,
     QRegularExpression,
     QUrl,
+    QPropertyAnimation,
+    QEasingCurve,
+    QEvent,
+    QTimer,
 )
 from PySide6.QtMultimedia import QMediaPlayer
-import subprocess
 from compile import build_project
 import os
 import sys
@@ -58,6 +70,258 @@ import re
 import struct
 import shutil
 import zipfile, tarfile
+import atexit
+
+PREF_PATH = Path.home() / ".vr_engine_compiler/prefs.ini"
+PREF_PATH.parent.mkdir(exist_ok=True, parents=True)
+PREF_DEFAULTS = {
+    "recent_projects": [],
+    "selected_project": "",
+    "last_project": "",
+    "window_size": [1100, 720],
+    "project_root": "",  # legacy single root
+    "project_root_confirmed": False,
+    "search_paths": [],
+}
+
+
+def _load_prefs():
+    if not PREF_PATH.exists():
+        return PREF_DEFAULTS.copy()
+    try:
+        with open(PREF_PATH, "rb") as f:
+            raw = f.read().strip()
+        if not raw:
+            return PREF_DEFAULTS.copy()
+        decoded = base64.b64decode(raw)
+        data = json.loads(decoded)
+        # Ensure defaults
+        for k, v in PREF_DEFAULTS.items():
+            data.setdefault(k, v)
+        # Migrate legacy single root into search_paths
+        if data.get("project_root") and not data.get("search_paths"):
+            data["search_paths"] = [data["project_root"]]
+        return data
+    except Exception:
+        return PREF_DEFAULTS.copy()
+
+
+pref_data = _load_prefs()
+
+
+def _default_project_root() -> Path:
+    if sys.platform.startswith("win"):
+        return Path.home() / "AppData" / "Local" / "VR-Engine-Projects"
+    return Path.home() / ".vr_engine_projects"
+
+
+def _resolve_project_root(path_str: Optional[str]) -> Path:
+    path = Path(path_str).expanduser() if path_str else _default_project_root()
+    return path
+
+
+_SEARCH_PATHS: list[Path] = [
+    _resolve_project_root(p) for p in pref_data.get("search_paths", []) if p
+]
+if not _SEARCH_PATHS and pref_data.get("project_root"):
+    _SEARCH_PATHS = [_resolve_project_root(pref_data.get("project_root"))]
+if not _SEARCH_PATHS:
+    _SEARCH_PATHS = [_default_project_root()]
+for p in _SEARCH_PATHS:
+    p.mkdir(exist_ok=True, parents=True)
+pref_data["search_paths"] = [str(p) for p in _SEARCH_PATHS]
+pref_data["project_root"] = (
+    pref_data.get("project_root") or pref_data["search_paths"][0]
+)
+PROJECTS_DIR = _SEARCH_PATHS[0]
+
+
+def _get_search_paths() -> list[Path]:
+    return list(_SEARCH_PATHS)
+
+
+def _set_search_paths(paths: list[Path]):
+    global _SEARCH_PATHS, PROJECTS_DIR
+    _SEARCH_PATHS = [p.resolve() for p in paths if p]
+    if not _SEARCH_PATHS:
+        _SEARCH_PATHS = [_default_project_root()]
+    for p in _SEARCH_PATHS:
+        p.mkdir(parents=True, exist_ok=True)
+    PROJECTS_DIR = _SEARCH_PATHS[0]
+    pref_data["search_paths"] = [str(p) for p in _SEARCH_PATHS]
+    pref_data["project_root"] = pref_data["search_paths"][0]
+
+
+XR_SAMPLES_DIR = (Path(__file__).parent.parent / "XrSamples").resolve()
+TEMPLATES_DIR = (Path(__file__).parent / "src" / "templates").resolve()
+
+
+def _add_recent_project(path: Path):
+    p_str = str(path.resolve())
+    lst = pref_data.get("recent_projects", []) or []
+    if p_str in lst:
+        lst.remove(p_str)
+    lst.insert(0, p_str)
+    pref_data["recent_projects"] = lst[:30]
+
+
+def _remove_recent_project(path: Path):
+    p_str = str(path.resolve())
+    pref_data["recent_projects"] = [
+        p for p in pref_data.get("recent_projects", []) if p != p_str
+    ]
+
+
+def _available_projects():
+    projects = []
+    for root in _get_search_paths():
+        if not root.exists():
+            continue
+        for entry in root.iterdir():
+            if entry.is_dir() and (entry / "Src").exists():
+                projects.append(entry)
+    return sorted(projects, key=lambda p: p.name.lower())
+
+
+def _find_project_by_name(name: str) -> Optional[Path]:
+    for root in _get_search_paths():
+        candidate = root / name
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+    return None
+
+
+def exit_handler():
+    try:
+        with open(PREF_PATH, "wb") as f:
+            f.write(base64.b64encode(json.dumps(pref_data, indent=4).encode()))
+    except Exception:
+        pass
+
+
+atexit.register(exit_handler)
+
+
+class ProjectTile(QFrame):
+    clicked = Signal(str)
+
+    def __init__(self, path: Path):
+        super().__init__()
+        self.path = path
+        self.setObjectName("ProjectTile")
+        self.setProperty("tileType", "project")
+        self.setProperty("selected", False)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumSize(140, 140)
+        self.setMaximumSize(200, 200)
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(18)
+        self._shadow.setOffset(0, 6)
+        self._shadow.setColor(QColor(0, 0, 0, 160))
+        self.setGraphicsEffect(self._shadow)
+        self._blurAnim: QPropertyAnimation | None = None
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
+        self.setLayout(layout)
+        name = QLabel(path.name)
+        name.setAlignment(Qt.AlignCenter)
+        name.setWordWrap(True)
+        name.setObjectName("TileTitle")
+        layout.addStretch(1)
+        layout.addWidget(name, 0, Qt.AlignCenter)
+        layout.addStretch(1)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(str(self.path))
+        super().mousePressEvent(event)
+
+    def setSelected(self, selected: bool):
+        self.setProperty("selected", selected)
+        self._shadow.setColor(
+            QColor(77, 130, 255, 220) if selected else QColor(0, 0, 0, 160)
+        )
+        self.animateBlur(34 if selected else 18)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def enterEvent(self, event):
+        if not self.property("selected"):
+            self.animateBlur(26)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if not self.property("selected"):
+            self.animateBlur(18)
+        super().leaveEvent(event)
+
+    def animateBlur(self, target: int):
+        if self._blurAnim and self._blurAnim.state() == QPropertyAnimation.Running:
+            self._blurAnim.stop()
+        self._blurAnim = QPropertyAnimation(self._shadow, b"blurRadius", self)
+        self._blurAnim.setStartValue(self._shadow.blurRadius())
+        self._blurAnim.setEndValue(target)
+        self._blurAnim.setDuration(180)
+        self._blurAnim.setEasingCurve(QEasingCurve.OutCubic)
+        self._blurAnim.start()
+
+
+class NewProjectTile(QFrame):
+    requestNew = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("NewProjectTile")
+        self.setProperty("tileType", "new")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumSize(140, 140)
+        self.setMaximumSize(200, 200)
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(24)
+        self._shadow.setOffset(0, 8)
+        self._shadow.setColor(QColor(48, 81, 138, 180))
+        self.setGraphicsEffect(self._shadow)
+        self._blurAnim: QPropertyAnimation | None = None
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
+        self.setLayout(layout)
+        plus = QLabel("+")
+        plus.setAlignment(Qt.AlignCenter)
+        plus.setObjectName("PlusIcon")
+        txt = QLabel("New Project")
+        txt.setAlignment(Qt.AlignCenter)
+        txt.setObjectName("TileTitle")
+        layout.addStretch(1)
+        layout.addWidget(plus)
+        layout.addWidget(txt)
+        layout.addStretch(1)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.requestNew.emit()
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        self.animateBlur(34)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.animateBlur(24)
+        super().leaveEvent(event)
+
+    def animateBlur(self, target: int):
+        if self._blurAnim and self._blurAnim.state() == QPropertyAnimation.Running:
+            self._blurAnim.stop()
+        self._blurAnim = QPropertyAnimation(self._shadow, b"blurRadius", self)
+        self._blurAnim.setStartValue(self._shadow.blurRadius())
+        self._blurAnim.setEndValue(target)
+        self._blurAnim.setDuration(200)
+        self._blurAnim.setEasingCurve(QEasingCurve.OutCubic)
+        self._blurAnim.start()
 
 
 class ProjectManager(QWidget):
@@ -65,105 +329,415 @@ class ProjectManager(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Project Manager")
-        self.layout = QVBoxLayout(self)
+        self.setWindowTitle("VR Engine - Project Manager")
+        self._ensure_search_paths()
+        w, h = pref_data.get("window_size", [1100, 720])
+        try:
+            self.resize(int(w), int(h))
+        except Exception:
+            self.resize(1100, 720)
 
-        self.projectList = QListWidget(self)
-        self.layout.addWidget(self.projectList)
+        self._tiles: list[ProjectTile] = []
+        self._selected: Path | None = None
+        sel = pref_data.get("selected_project")
+        if sel and Path(sel).exists():
+            self._selected = Path(sel)
 
-        self.loadProjectButton = QPushButton("Load Project", self)
-        self.loadProjectButton.setDisabled(True)
-        self.layout.addWidget(self.loadProjectButton)
+        self._buildUi()
+        QTimer.singleShot(0, self.rebuildProjectsGrid)
+        self._applyTheme()
 
-        self.deleteProjectButton = QPushButton("Delete Project", self)
-        self.deleteProjectButton.setDisabled(True)
-        self.layout.addWidget(self.deleteProjectButton)
+    def _ensure_search_paths(self):
+        """On first run ask where projects should live; supports multiple roots."""
+        global PROJECTS_DIR, _SEARCH_PATHS
+        confirmed = pref_data.get("project_root_confirmed")
+        paths = [Path(p) for p in pref_data.get("search_paths", []) if p]
+        if confirmed and paths:
+            _SEARCH_PATHS = [p for p in paths if p.exists()] or paths
+        else:
+            default_root = _default_project_root()
+            selected = QFileDialog.getExistingDirectory(
+                self,
+                "Select folder to store VR Engine projects",
+                str(default_root),
+            )
+            chosen = Path(selected) if selected else default_root
+            chosen.mkdir(parents=True, exist_ok=True)
+            _SEARCH_PATHS = [chosen]
+            pref_data["project_root_confirmed"] = True
+        for p in _SEARCH_PATHS:
+            p.mkdir(exist_ok=True, parents=True)
+        pref_data["search_paths"] = [str(p.resolve()) for p in _SEARCH_PATHS]
+        pref_data["project_root"] = pref_data["search_paths"][0]
+        PROJECTS_DIR = _SEARCH_PATHS[0]
 
-        self.modifyConfigButton = QPushButton("Modify Project Config", self)
-        self.modifyConfigButton.setDisabled(True)
-        self.layout.addWidget(self.modifyConfigButton)
+    def _open_locations_dialog(self):
+        class LocationsDialog(QDialog):
+            def __init__(self, paths: list[Path], parent=None):
+                super().__init__(parent)
+                self.setWindowTitle("Project Locations")
+                self.resize(520, 360)
+                layout = QVBoxLayout(self)
+                self.list = QListWidget(self)
+                for p in paths:
+                    self.list.addItem(str(p))
+                layout.addWidget(self.list)
 
-        self.newProjectButton = QPushButton("New Project +", self)
-        self.layout.addWidget(self.newProjectButton)
-        self.loadProjectButton.clicked.connect(
-            lambda: self.loadProject(self.projectList.currentItem().text())
+                btnRow = QHBoxLayout()
+                self.addBtn = QPushButton("Add")
+                self.removeBtn = QPushButton("Remove")
+                self.upBtn = QPushButton("Up")
+                self.downBtn = QPushButton("Down")
+                btnRow.addWidget(self.addBtn)
+                btnRow.addWidget(self.removeBtn)
+                btnRow.addWidget(self.upBtn)
+                btnRow.addWidget(self.downBtn)
+                layout.addLayout(btnRow)
+
+                buttons = QDialogButtonBox(
+                    QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+                )
+                layout.addWidget(buttons)
+
+                self.addBtn.clicked.connect(self._add_path)
+                self.removeBtn.clicked.connect(self._remove_selected)
+                self.upBtn.clicked.connect(self._move_up)
+                self.downBtn.clicked.connect(self._move_down)
+                buttons.accepted.connect(self.accept)
+                buttons.rejected.connect(self.reject)
+
+            def _add_path(self):
+                chosen = QFileDialog.getExistingDirectory(
+                    self, "Add project folder", str(_default_project_root())
+                )
+                if chosen:
+                    p = Path(chosen)
+                    if str(p) not in [
+                        self.list.item(i).text() for i in range(self.list.count())
+                    ]:
+                        self.list.addItem(str(p))
+
+            def _remove_selected(self):
+                row = self.list.currentRow()
+                if row >= 0:
+                    self.list.takeItem(row)
+
+            def _move_up(self):
+                row = self.list.currentRow()
+                if row > 0:
+                    item = self.list.takeItem(row)
+                    self.list.insertItem(row - 1, item)
+                    self.list.setCurrentRow(row - 1)
+
+            def _move_down(self):
+                row = self.list.currentRow()
+                if row < self.list.count() - 1:
+                    item = self.list.takeItem(row)
+                    self.list.insertItem(row + 1, item)
+                    self.list.setCurrentRow(row + 1)
+
+            def result_paths(self) -> list[Path]:
+                return [
+                    Path(self.list.item(i).text()) for i in range(self.list.count())
+                ]
+
+        dlg = LocationsDialog(_get_search_paths(), self)
+        if dlg.exec() == QDialog.Accepted:
+            new_paths = dlg.result_paths()
+            if not new_paths:
+                QMessageBox.warning(self, "Locations", "At least one path is required.")
+                return
+            _set_search_paths(new_paths)
+            pref_data["project_root_confirmed"] = True
+            self.rebuildProjectsGrid()
+
+    # -------- UI construction --------
+    def _buildUi(self):
+        rootLayout = QVBoxLayout()
+        rootLayout.setContentsMargins(0, 0, 0, 0)
+        rootLayout.setSpacing(0)
+        self.setLayout(rootLayout)
+
+        header = QFrame()
+        header.setObjectName("HeaderBar")
+        hLayout = QHBoxLayout()
+        hLayout.setContentsMargins(12, 8, 12, 8)
+        hLayout.setSpacing(10)
+        header.setLayout(hLayout)
+        title = QLabel("VR Engine Project Manager")
+        title.setObjectName("Header")
+        hLayout.addWidget(title, stretch=1)
+        self.locationsBtn = QPushButton("Locations")
+        self.locationsBtn.clicked.connect(self._open_locations_dialog)
+        self.refreshBtn = QPushButton("Refresh")
+        self.refreshBtn.clicked.connect(self.rebuildProjectsGrid)
+        self.newBtn = QPushButton("New Project")
+        self.newBtn.clicked.connect(self.createNewProject)
+        hLayout.addWidget(self.locationsBtn)
+        hLayout.addWidget(self.refreshBtn)
+        hLayout.addWidget(self.newBtn)
+        rootLayout.addWidget(header)
+
+        contentWrap = QHBoxLayout()
+        contentWrap.setContentsMargins(12, 8, 12, 12)
+        contentWrap.setSpacing(16)
+        rootLayout.addLayout(contentWrap, stretch=1)
+
+        self.leftSide = QVBoxLayout()
+        self.leftSide.setSpacing(8)
+        contentWrap.addLayout(self.leftSide, stretch=4)
+
+        self.inlineNewBtn = QToolButton()
+        self.inlineNewBtn.setText("+ New Project")
+        self.inlineNewBtn.setObjectName("InlineNew")
+        self.inlineNewBtn.clicked.connect(self.createNewProject)
+        self.inlineNewBtn.hide()
+        self.leftSide.addWidget(self.inlineNewBtn, 0, Qt.AlignLeft)
+
+        self.scrollArea = QScrollArea()
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollWidget = QWidget()
+        self.gridLayout = QGridLayout()
+        self.gridLayout.setContentsMargins(0, 0, 0, 0)
+        self.gridLayout.setSpacing(12)
+        self.scrollWidget.setLayout(self.gridLayout)
+        self.scrollWidget.installEventFilter(self)
+        self.scrollArea.setWidget(self.scrollWidget)
+        self.leftSide.addWidget(self.scrollArea, stretch=1)
+
+        self.rightFrame = QFrame()
+        self.rightFrame.setObjectName("RightPanel")
+        self.rightFrame.setMinimumWidth(260)
+        self.rightLayout = QVBoxLayout()
+        self.rightLayout.setContentsMargins(16, 16, 16, 16)
+        self.rightLayout.setSpacing(12)
+        self.rightFrame.setLayout(self.rightLayout)
+        contentWrap.addWidget(self.rightFrame, stretch=0)
+
+        self.panelTitle = QLabel("Project Options")
+        self.panelTitle.setObjectName("PanelHeader")
+        self.rightLayout.addWidget(self.panelTitle)
+        self.selectedLabel = QLabel("None selected")
+        self.selectedLabel.setObjectName("SelectedPath")
+        self.rightLayout.addWidget(self.selectedLabel)
+
+        self.openBtn = QPushButton("Open")
+        self.modifyBtn = QPushButton("Modify Config")
+        self.deleteBtn = QPushButton("Delete")
+        self.revealBtn = QPushButton("Open Folder")
+        for b in (self.openBtn, self.modifyBtn, self.deleteBtn, self.revealBtn):
+            b.setEnabled(False)
+            self.rightLayout.addWidget(b)
+        self.openBtn.clicked.connect(self._open_selected)
+        self.modifyBtn.clicked.connect(self._modify_selected)
+        self.deleteBtn.clicked.connect(self._delete_selected)
+        self.revealBtn.clicked.connect(self._reveal_selected)
+
+        self.rightLayout.addStretch(1)
+        self._panelOpacity = QGraphicsOpacityEffect(self.rightFrame)
+        self._panelOpacity.setOpacity(0.0)
+        self.rightFrame.setGraphicsEffect(self._panelOpacity)
+        self.rightFrame.hide()
+        self._panelAnim: QPropertyAnimation | None = None
+
+    # -------- Project listing --------
+    def rebuildProjectsGrid(self):
+        while self.gridLayout.count():
+            item = self.gridLayout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        self._tiles.clear()
+
+        available = {p.name: p for p in _available_projects()}
+        ordered: list[Path] = []
+        for p_str in pref_data.get("recent_projects", []):
+            p = Path(p_str)
+            if p.name in available:
+                ordered.append(available.pop(p.name))
+        ordered.extend(sorted(available.values(), key=lambda p: p.name.lower()))
+
+        show_inline_new = len(ordered) > 0
+        self.inlineNewBtn.setVisible(show_inline_new)
+
+        if not ordered:
+            newTile = NewProjectTile()
+            newTile.requestNew.connect(self.createNewProject)
+            self.gridLayout.addWidget(newTile, 0, 0)
+            self._tiles = []
+            self.clear_selection()
+            return
+
+        available_width = self.scrollArea.viewport().width() or 1
+        card_width = 200
+        columns = max(1, available_width // (card_width + 24))
+        row = col = 0
+        for path in ordered:
+            tile = ProjectTile(path)
+            tile.clicked.connect(self.on_tile_selected)
+            self.gridLayout.addWidget(tile, row, col)
+            self._tiles.append(tile)
+            col += 1
+            if col >= columns:
+                col = 0
+                row += 1
+
+        if self._selected:
+            self._selected = self._selected if self._selected.exists() else None
+        if self._selected:
+            matched = False
+            for t in self._tiles:
+                sel = Path(str(t.path)) == self._selected
+                t.setSelected(sel)
+                matched = matched or sel
+            if matched:
+                self.selectedLabel.setText(self._selected.name)
+                self._set_selection_state(True)
+            else:
+                self.clear_selection()
+        else:
+            self.clear_selection()
+
+    def on_tile_selected(self, path: str):
+        self._selected = Path(path)
+        pref_data["selected_project"] = str(self._selected)
+        for t in self._tiles:
+            t.setSelected(str(t.path) == path)
+        self._set_selection_state(True)
+        self.selectedLabel.setText(self._selected.name)
+        _add_recent_project(self._selected)
+
+    def clear_selection(self):
+        self._selected = None
+        pref_data["selected_project"] = ""
+        for t in self._tiles:
+            t.setSelected(False)
+        self._set_selection_state(False)
+        self.selectedLabel.setText("None selected")
+
+    def eventFilter(self, source, event):
+        if source is self.scrollWidget and event.type() == QEvent.MouseButtonPress:
+            if event.button() == Qt.LeftButton:
+                w = self.scrollWidget.childAt(event.pos())
+                tile = None
+                while w:
+                    if isinstance(w, ProjectTile):
+                        tile = w
+                        break
+                    w = w.parent()
+                if not tile:
+                    self.clear_selection()
+        return super().eventFilter(source, event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        pref_data["window_size"] = [self.width(), self.height()]
+        QTimer.singleShot(0, self.rebuildProjectsGrid)
+
+    # -------- Buttons --------
+    def _set_selection_state(self, enabled: bool):
+        if enabled:
+            if not self.rightFrame.isVisible():
+                self.rightFrame.show()
+            self._animate_panel(1.0)
+        else:
+            self._animate_panel(0.0, hide=True)
+        for b in (self.openBtn, self.modifyBtn, self.deleteBtn, self.revealBtn):
+            b.setEnabled(enabled)
+
+    def _animate_panel(self, target: float, hide: bool = False):
+        if self._panelAnim and self._panelAnim.state() == QPropertyAnimation.Running:
+            self._panelAnim.stop()
+        self._panelAnim = QPropertyAnimation(self._panelOpacity, b"opacity", self)
+        self._panelAnim.setStartValue(self._panelOpacity.opacity())
+        self._panelAnim.setEndValue(target)
+        self._panelAnim.setDuration(
+            200 if target > self._panelOpacity.opacity() else 160
         )
-        self.deleteProjectButton.clicked.connect(self.deleteProject)
-        self.newProjectButton.clicked.connect(self.createNewProject)
-        self.modifyConfigButton.clicked.connect(
-            lambda: self.editProjectConfig(self.projectList.currentItem().text())
+        self._panelAnim.setEasingCurve(QEasingCurve.OutCubic)
+        if hide:
+            self._panelAnim.finished.connect(lambda: self.rightFrame.hide())
+        else:
+            self.rightFrame.show()
+        self._panelAnim.start()
+
+    # -------- Actions --------
+    def _open_selected(self):
+        if not self._selected:
+            return
+        self.loadProject(self._selected)
+
+    def _modify_selected(self):
+        if not self._selected:
+            return
+        self.editProjectConfig(self._selected)
+
+    def _delete_selected(self):
+        if not self._selected:
+            return
+        self.deleteProject(self._selected)
+
+    def _reveal_selected(self):
+        if not self._selected:
+            return
+        try:
+            os.startfile(str(self._selected))
+        except Exception as e:
+            QMessageBox.warning(self, "Open Folder", str(e))
+
+    # -------- Legacy actions wired to new UI --------
+    def loadProject(self, project: Path | str):
+        project_path = (
+            project if isinstance(project, Path) else _find_project_by_name(project)
         )
-        self.projectList.itemSelectionChanged.connect(
-            lambda: [
-                self.loadProjectButton.setDisabled(
-                    self.projectList.currentItem() is None
-                ),
-                self.deleteProjectButton.setDisabled(
-                    self.projectList.currentItem() is None
-                ),
-                self.modifyConfigButton.setDisabled(
-                    self.projectList.currentItem() is None
-                ),
-                self.loadProjectButton.setText(
-                    f"Load Project '{self.projectList.currentItem().text()}'"
-                ),
-            ][-1]
-        )
-
-        self.populateProjectList()
-
-    def getAvailableProjects(self):
-        path = "./projects/"
-        return [
-            f.name
-            for f in os.scandir(path)
-            if f.is_dir() and os.path.exists(f.path + "/Src/")
-        ]
-
-    def loadProject(self, project_name: str):
-        self.projectViewer = ProjectViewer(project_name, self)
+        if project_path is None or not project_path.exists():
+            QMessageBox.warning(self, "Open", f"Project not found: {project}")
+            return
+        self.projectViewer = ProjectViewer(project_path, self)
         self.projectViewer.show()
+        _add_recent_project(project_path)
+        pref_data["last_project"] = project_path.name
+        self.projectSelected.emit(project_path.name)
 
-    def deleteProject(self):
-        project_name = self.projectList.currentItem().text()
+    def deleteProject(self, project_path: Path):
+        project_name = project_path.name
         confirm = QMessageBox.question(
             self,
             "Delete Project",
-            f"Are you sure you want to delete the project '{project_name}'? This action cannot be undone.",
+            f"Delete project '{project_name}'? This cannot be undone.",
             QMessageBox.Yes | QMessageBox.No,
         )
-        if confirm == QMessageBox.Yes:
-            shutil.rmtree(f"./projects/{project_name}/")
-            shutil.rmtree(f"../XrSamples/{project_name}/", ignore_errors=True)
-            self.populateProjectList()
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            shutil.rmtree(project_path, ignore_errors=True)
+            shutil.rmtree(XR_SAMPLES_DIR / project_name, ignore_errors=True)
+            _remove_recent_project(project_path)
+            if pref_data.get("last_project") == project_name:
+                pref_data["last_project"] = ""
+            self.clear_selection()
+            self.rebuildProjectsGrid()
+        except Exception as e:
+            QMessageBox.critical(self, "Delete Project", f"Failed to delete: {e}")
 
-    def populateProjectList(self):
-        self.projectList.clear()
-        for project_name in self.getAvailableProjects():
-            self.projectList.addItem(project_name)
-        self.loadProjectButton.setDisabled(True)
-        self.loadProjectButton.setText("Load Project")
-        self.deleteProjectButton.setDisabled(True)
-        self.modifyConfigButton.setDisabled(True)
+    def editProjectConfig(self, project_path: Path):
+        project_name = project_path.name
 
-    def editProjectConfig(self, project_name: str):
         class EditConfigDialog(QDialog):
             def __init__(self, project_name: str, parent=None):
                 super().__init__(parent)
                 self.setWindowTitle(f"Edit Project Config: {project_name}")
                 self.setModal(True)
-                # Implementation of config editing UI goes here
                 self.projectNameInput = QLineEdit(self)
                 self.projectNameInput.setText(project_name)
 
                 warn_manifest_override = None
-                if os.path.exists(
-                    f"./projects/{project_name}/AndroidManifest_injector.xml"
-                ):
+                if (
+                    PROJECTS_DIR / project_name / "AndroidManifest_injector.xml"
+                ).exists():
                     warn_manifest_override = QLabel(
-                        "<b>Warning:</b> This project already has a manifest, any changes are destructive",
+                        "Warning: manifest already exists; replacing is destructive",
                         self,
-                        textFormat=Qt.RichText,
                     )
                     warn_manifest_override.setStyleSheet("color: #ff4400;")
                     warn_manifest_override.setWordWrap(True)
@@ -185,46 +759,61 @@ class ProjectManager(QWidget):
 
                 form = QFormLayout()
                 form.addRow("Project name:", self.projectNameInput)
-
                 if warn_manifest_override:
                     form.addRow(warn_manifest_override)
                 form.addRow("Android Manifest:", self.manifest_template_choice)
                 form.addRow(buttons)
                 self.setLayout(form)
-                self.resize(380, 0)
+                self.resize(420, 0)
 
         dlg = EditConfigDialog(project_name, self)
         dlg.exec()
 
-        # Handle the edited config values
         if dlg.result() == QDialog.Accepted:
             new_project_name = dlg.projectNameInput.text().strip()
+            current_path = PROJECTS_DIR / project_name
+            target_path = (
+                PROJECTS_DIR / new_project_name if new_project_name else current_path
+            )
             if new_project_name and new_project_name != project_name:
-                # Rename project directory
-                os.rename(
-                    f"./projects/{project_name}/",
-                    f"./projects/{new_project_name}/",
-                )
-                project_name = new_project_name
+                if target_path.exists():
+                    QMessageBox.warning(
+                        self, "Rename", "A project with that name already exists."
+                    )
+                    return
+                try:
+                    current_path.rename(target_path)
+                    shutil.rmtree(XR_SAMPLES_DIR / project_name, ignore_errors=True)
+                    project_path = target_path
+                    project_name = new_project_name
+                    _remove_recent_project(current_path)
+                    _add_recent_project(project_path)
+                except Exception as e:
+                    QMessageBox.critical(self, "Rename Failed", str(e))
+                    return
 
+            warn_manifest_override = None
             if dlg.manifest_template_choice.currentIndex() == 1:
-                manifest_src = "./src/templates/AndroidManifest_default.xml"
+                manifest_src = TEMPLATES_DIR / "AndroidManifest_default.xml"
             elif dlg.manifest_template_choice.currentIndex() == 2:
-                manifest_src = "./src/templates/AndroidManifest_full.xml"
-            else:
-                manifest_src = None
+                manifest_src = TEMPLATES_DIR / "AndroidManifest_full.xml"
 
             if manifest_src:
-                shutil.copy2(
-                    manifest_src,
-                    f"./projects/{project_name}/AndroidManifest_injector.xml",
-                )
+                try:
+                    shutil.copy2(
+                        manifest_src, project_path / "AndroidManifest_injector.xml"
+                    )
+                except Exception as e:
+                    QMessageBox.critical(
+                        self, "Manifest", f"Failed to apply manifest: {e}"
+                    )
 
-            self.populateProjectList()
+            self._selected = project_path
+            self.rebuildProjectsGrid()
 
     def createNewProject(self):
         class NewProjectDialog(QDialog):
-            def __init__(self, parent=None):
+            def __init__(self, existing: list[str], parent=None):
                 super().__init__(parent)
                 self.setWindowTitle("New Project")
                 self.setModal(True)
@@ -268,72 +857,97 @@ class ProjectManager(QWidget):
                 form.addRow(self.errorLabel)
                 form.addRow(buttons)
                 self.setLayout(form)
-                self.resize(380, 0)
+                self.resize(420, 0)
 
-                self.projectNameInput.textChanged.connect(self._validate)
-                self._validate()
+                self.projectNameInput.textChanged.connect(
+                    lambda: self._validate(existing)
+                )
+                self._validate(existing)
                 self.projectNameInput.setFocus()
 
-            def _validate(self):
-
+            def _validate(self, existing: list[str]):
                 name = self.projectNameInput.text().strip()
                 if not name:
                     self.errorLabel.setText("Enter a project name.")
                     self.okButton.setEnabled(False)
                     return
-
                 if not re.fullmatch(r"[A-Za-z0-9_\-]+", name):
                     self.errorLabel.setText("Use only letters, numbers, _, -.")
                     self.okButton.setEnabled(False)
                     return
-
-                existing = []
-                parent = self.parent()
-                try:
-                    if parent and hasattr(parent, "getAvailableProjects"):
-                        existing = parent.getAvailableProjects()
-                except Exception:
-                    pass
-
                 if name in existing:
                     self.errorLabel.setText(f"'{name}' already exists.")
                     self.okButton.setEnabled(False)
                     return
-
                 self.errorLabel.setText("")
                 self.okButton.setEnabled(True)
 
             def _tryAccept(self):
-                self._validate()
-                if self.okButton.isEnabled():
-                    self.accept()
+                self.accept() if self.okButton.isEnabled() else None
 
-        dlg = NewProjectDialog(self)
+        existing_names = [p.name for p in _available_projects()]
+        dlg = NewProjectDialog(existing_names, self)
         if dlg.exec() == QMessageBox.Accepted:
-            project_name = dlg.projectNameInput.text()
-            template = dlg.templateSelectionChoice.currentText()
-            if template == "Engine Override (basic)":
-                shutil.copytree(
-                    "./src/templates/engine_override/",
-                    f"./projects/{project_name}/",
+            project_name = dlg.projectNameInput.text().strip()
+            project_path = PROJECTS_DIR / project_name
+            template_choice = dlg.templateSelectionChoice.currentText()
+            manifest_idx = dlg.manifestModeSelectionChoice.currentIndex()
+
+            src_override = TEMPLATES_DIR / "engine_override"
+            src_injection = TEMPLATES_DIR / "engine_injection"
+            manifest_src = None
+            if manifest_idx == 1:
+                manifest_src = TEMPLATES_DIR / "AndroidManifest_default.xml"
+            elif manifest_idx == 2:
+                manifest_src = TEMPLATES_DIR / "AndroidManifest_full.xml"
+
+            try:
+                if project_path.exists():
+                    shutil.rmtree(project_path)
+                if template_choice == "Engine Override (basic)":
+                    shutil.copytree(src_override, project_path)
+                else:
+                    shutil.copytree(src_injection, project_path)
+                if manifest_src:
+                    shutil.copy2(
+                        manifest_src, project_path / "AndroidManifest_injector.xml"
+                    )
+                _add_recent_project(project_path)
+                pref_data["selected_project"] = str(project_path)
+                self._selected = project_path
+                self.rebuildProjectsGrid()
+                self.projectViewer = ProjectViewer(project_path, self)
+                self.projectViewer.show()
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "New Project", f"Failed to create project:\n{e}"
                 )
-            elif template == "Engine Injection (advanced)":
-                shutil.copytree(
-                    "./src/templates/engine_injection/",
-                    f"./projects/{project_name}/",
-                )
-            if dlg.manifestModeSelectionChoice.currentIndex() == 1:
-                manifest_src = "./src/templates/AndroidManifest_default.xml"
-            elif dlg.manifestModeSelectionChoice.currentIndex() == 2:
-                manifest_src = "./src/templates/AndroidManifest_full.xml"
-            if dlg.manifestModeSelectionChoice.currentIndex() != 0:
-                shutil.copy2(
-                    manifest_src,
-                    f"./projects/{project_name}/AndroidManifest_injector.xml",
-                )
-            self.populateProjectList()
-            self.projectViewer = ProjectViewer(project_name, self)
-            self.projectViewer.show()
+
+    # -------- Theming --------
+    def _applyTheme(self):
+        ss = """
+        QWidget { background-color: #141414; color: #e0e0e0; font-family: 'Segoe UI', Arial; }
+        QLabel { background: transparent; }
+        QLabel#Header { font-size: 16px; font-weight: 600; }
+        QLabel#PanelHeader { font-size: 17px; font-weight: 600; background: #1f1f1f; border: 1px solid #2a2a2a; border-radius: 6px; padding: 6px 10px; }
+        QLabel#SelectedPath { font-size: 13px; color: #9aa0aa; }
+        QFrame#HeaderBar { background: #1c1c1c; border-bottom: 1px solid #2b2b2b; }
+        QFrame#RightPanel { background: #1a1a1a; border: 1px solid #262626; border-radius: 10px; }
+        QPushButton, QToolButton { background: #222; border: 1px solid #333; border-radius: 6px; padding: 6px 10px; }
+        QPushButton:hover, QToolButton:hover { background: #2c2c2c; }
+        QPushButton:pressed, QToolButton:pressed { background: #353535; }
+        QScrollArea { border: none; }
+        QFrame[ tileType="project" ] { background: #1c1c1c; border: 1px solid #262626; border-radius: 12px; }
+        QFrame[ tileType="project" ]:hover { border-color: #3a3a3a; }
+        QFrame[ tileType="project" ][ selected="true" ] { border: 2px solid #4d82ff; background: #20283a; }
+        QFrame[ tileType="new" ] { background: #18243a; border: 2px dashed #30518a; border-radius: 12px; }
+        QFrame[ tileType="new" ]:hover { background: #20314d; }
+        QLabel#PlusIcon { font-size: 34px; color: #4d82ff; }
+        QLabel#TileTitle { font-size: 14px; font-weight: 500; background: #1d1d1d; border: 1px solid #2a2a2a; border-radius: 6px; padding: 4px 8px; }
+        QToolButton#InlineNew { background: #18243a; border: 1px solid #26426d; border-radius: 6px; padding: 6px 10px; }
+        QToolButton#InlineNew:hover { background: #20314d; }
+        """
+        self.setStyleSheet(ss)
 
 
 class ProjectViewer(QWidget):
@@ -358,7 +972,7 @@ class ProjectViewer(QWidget):
         def flush(self):
             return
 
-    def __init__(self, project_name: str, Mgr: ProjectManager, parent=None):
+    def __init__(self, project_path: Path | str, Mgr: ProjectManager, parent=None):
         super().__init__(parent)
 
         class CppHighlighter(QSyntaxHighlighter):
@@ -545,7 +1159,9 @@ class ProjectViewer(QWidget):
                         )
                         start = startMatch.capturedStart()
 
-        self.project_name = project_name
+        resolved_path = Path(project_path).resolve()
+        self.project_path = resolved_path
+        self.project_name = resolved_path.name
         self.Mgr = Mgr
         self.Mgr.hide()
         self.setWindowTitle(f"Project: {self.project_name}")
@@ -584,7 +1200,7 @@ class ProjectViewer(QWidget):
         self.layout.addWidget(self.toolbar)
 
         # Keep root cached so file model does not walk the entire filesystem.
-        self.project_root = os.path.abspath(os.path.join("projects", self.project_name))
+        self.project_root = str(self.project_path)
 
         # Header row: keep fixed height so it doesn't expand vertically
         headerWidget = QWidget(self)
@@ -1292,7 +1908,9 @@ class ProjectViewer(QWidget):
             return
         max_dim = 4096
         if img.width() > max_dim or img.height() > max_dim:
-            img = img.scaled(max_dim, max_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            img = img.scaled(
+                max_dim, max_dim, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
         pix = QPixmap.fromImage(img)
         self.imageLabel.setPixmap(pix)
         self.imageLabel.adjustSize()
