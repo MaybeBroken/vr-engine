@@ -5,7 +5,7 @@
 // The json below is a reference of all possible injection points, the first word is the name you use for it,
 // what follows is the injection markers that can be found in the base engine file "file://./compiler/src/engine/VrEngine/Src/main.cpp".
 
-//"includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
+// "includes": {"entry": INCLUDES_ENTRY, "exit": INCLUDES_EXIT},
 // "var_space": {"entry": VAR_SPACE_ENTRY, "exit": VAR_SPACE_EXIT},
 // "class": {"entry": CLASS_ENTRY, "exit": CLASS_EXIT},
 // "entry_point_init": {"entry": ENTRY_POINT_INIT, "exit": ENTRY_POINT_EXIT},
@@ -19,18 +19,19 @@
 // "update": {"entry": UPDATE_ENTRY, "exit": UPDATE_EXIT},
 // "render": {"entry": RENDER_ENTRY, "exit": RENDER_EXIT},
 
-// Example injection project:
+// //  Example injection psuedo-code (doesnt work, unfortunately, printing is actually done via XR logging functions):
+// //  || specifies the injection point name
+// //  \/    \/ specifies the mode to use (w = overwrite, a = append, p = prepend)
+// #includes> w
+// #include <iostream> // <-- example include, code is literally injected into the source engine then compiled.
+// #end               //      In this case it overwrites the includes section, so be sure to re-include any necessary headers.
 
-// #INCLUDES> w
-// #include <iostream>
-// #end
-
-// #VAR_SPACE> w
+// #var_space> w
 // // Example variable injection
 // int exampleVariable = 42;
 // #end
 
-// #CLASS> w
+// #class> w
 // // Example class injection
 // class VrEngine
 // { // Note: class name must match the base engine class name, which is always VrEngine
