@@ -9,6 +9,7 @@ import shutil
 import sys
 import json
 import base64
+import time
 from typing import Optional
 import atexit
 
@@ -29,8 +30,9 @@ except Exception:
 PREF_PATH = pathlib.Path.home() / ".vr_engine_compiler" / "prefs.ini"
 PREF_PATH.parent.mkdir(parents=True, exist_ok=True)
 PREF_DEFAULTS = {
-    "project_root": "",
+    "project_root": "",  # legacy single root
     "project_root_confirmed": False,
+    "search_paths": [],
 }
 
 
@@ -54,6 +56,8 @@ def _load_prefs() -> dict:
         data = json.loads(base64.b64decode(raw))
         for k, v in PREF_DEFAULTS.items():
             data.setdefault(k, v)
+        if data.get("project_root") and not data.get("search_paths"):
+            data["search_paths"] = [data["project_root"]]
         return data
     except Exception:
         return PREF_DEFAULTS.copy()
@@ -66,12 +70,41 @@ def _save_prefs(data: dict):
         pass
 
 
+def _get_search_paths() -> list[pathlib.Path]:
+    return list(_SEARCH_PATHS)
+
+
+def _find_project_path(name_or_path: str | pathlib.Path) -> Optional[pathlib.Path]:
+    candidate = pathlib.Path(name_or_path)
+    if candidate.is_absolute():
+        if candidate.exists():
+            return candidate
+        return None
+    # Try name within configured roots
+    for root in _get_search_paths():
+        path = root / str(name_or_path)
+        if path.exists():
+            return path
+    return None
+
+
 pref_data = _load_prefs()
-PROJECTS_DIR = _resolve_project_root(pref_data.get("project_root"))
-PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
-pref_data["project_root"] = str(PROJECTS_DIR)
+
+_SEARCH_PATHS = [
+    _resolve_project_root(p) for p in pref_data.get("search_paths", []) if p
+]
+if not _SEARCH_PATHS and pref_data.get("project_root"):
+    _SEARCH_PATHS = [_resolve_project_root(pref_data.get("project_root"))]
+if not _SEARCH_PATHS:
+    _SEARCH_PATHS = [_default_project_root()]
+for p in _SEARCH_PATHS:
+    p.mkdir(parents=True, exist_ok=True)
+
+pref_data["search_paths"] = [str(p) for p in _SEARCH_PATHS]
+pref_data["project_root"] = pref_data["search_paths"][0]
 if not pref_data.get("project_root_confirmed"):
     pref_data["project_root_confirmed"] = True
+PROJECTS_DIR = _SEARCH_PATHS[0]
 _save_prefs(pref_data)
 
 
@@ -284,10 +317,12 @@ class Parser:
 
 class Project:
     def __init__(self, name):
-        path = PROJECTS_DIR / name
-        if not path.exists():
-            raise FileNotFoundError(f"Project {name} does not exist in {PROJECTS_DIR}")
-        self.name: str = name
+        path = _find_project_path(name)
+        if not path:
+            raise FileNotFoundError(
+                f"Project {name} does not exist in any configured search path: {pref_data.get('search_paths', [])}"
+            )
+        self.name: str = pathlib.Path(path).name
         self.path: pathlib.Path = path
         self.assets_dir: pathlib.Path = self.path / ASSETS_DIR
         self.src_dir: pathlib.Path = self.path / C_FILES
@@ -437,6 +472,7 @@ class Compiler:
 
     def assemble_source(self):
         self.compiled_project, self.manifest_content = self.project.build_project()
+        time.sleep(2)
         with open(self.root_file, "r", encoding="utf-8-sig", errors="ignore") as f:
             root_content = f.read()
 
@@ -501,36 +537,6 @@ class Compiler:
             f.write(str_format(root_content))
 
         with open(
-            self.project_dir / "CMakeLists.txt",
-            "r",
-        ) as f:
-            cmake_content = f.read()
-        cmake_content = cmake_content.replace(
-            "project(VrEngine)",
-            f"project({self.project.name.replace('-', '_').replace(' ', '_')})",
-        )
-        with open(
-            self.project_dir / "CMakeLists.txt",
-            "w",
-        ) as f:
-            f.write(cmake_content)
-
-        with open(
-            self.project_dir / "Projects/Android/build.gradle",
-            "r",
-        ) as f:
-            gradle_content = f.read()
-        gradle_content = gradle_content.replace(
-            'targets "VrEngine"',
-            f"targets \"{self.project.name.replace('-', '_').replace(' ', '_')}\"",
-        )
-        with open(
-            self.project_dir / "Projects/Android/build.gradle",
-            "w",
-        ) as f:
-            f.write(gradle_content)
-
-        with open(
             self.project_dir / "Projects/Android/AndroidManifest.xml",
             "r",
         ) as f:
@@ -542,38 +548,26 @@ class Compiler:
             local_properties_content = f.read()
         if sys.platform == "win32":
             local_properties_content = local_properties_content.replace(
-            "DIR",
-            str(
-                pathlib.Path.home()
-                / "AppData"
-                / "Local"
-                / "Android"
-                / "Sdk"
-            ).replace("\\", "\\\\")
-        )
+                "DIR",
+                str(
+                    pathlib.Path.home() / "AppData" / "Local" / "Android" / "Sdk"
+                ).replace("\\", "\\\\"),
+            )
         elif sys.platform == "darwin":
             local_properties_content = local_properties_content.replace(
                 "DIR",
-                str(
-                    pathlib.Path.home()
-                    / "Library"
-                    / "Android"
-                    / "sdk"
-                ),
+                str(pathlib.Path.home() / "Library" / "Android" / "sdk"),
             )
         elif sys.platform == "linux":
             local_properties_content = local_properties_content.replace(
                 "DIR",
-                str(
-                    pathlib.Path.home()
-                    / "Android"
-                    / "Sdk"
-                ),
+                str(pathlib.Path.home() / "Android" / "Sdk"),
             )
-        manifest_content = manifest_content.replace(
-            'android:value="VrEngine"',
-            f'android:value="{self.project.name.replace("-", "_").replace(" ", "_")}"',
-        )
+        with open(
+            self.project_dir / "Projects/Android/local.properties",
+            "w",
+        ) as f:
+            f.write(local_properties_content)
         manifest_content = manifest_content.replace(
             'package="com.maybebroken.vrengine"',
             f'package="com.maybebroken.vrengine.{self.project.name.replace("-", "_").replace(" ", "_")}"',
@@ -586,11 +580,43 @@ class Compiler:
             'android:name="com.maybebroken.vrengine.MainActivity"',
             f'android:name="com.maybebroken.vrengine.{self.project.name.replace("-", "_").replace(" ", "_")}.MainActivity"',
         )
+        manifest_content = manifest_content.replace(
+            'android:value="vr_engine"',
+            f"android:value=\"{self.project.name.lower().replace('-', '_').replace(' ', '_')}\"",
+        )
         with open(
             self.project_dir / "Projects/Android/AndroidManifest.xml",
             "w",
         ) as f:
             f.write(manifest_content)
+        with open(
+            self.project_dir / "CMakeLists.txt",
+            "r",
+        ) as f:
+            cmake_content = f.read()
+        cmake_content = cmake_content.replace(
+            "project(vr_engine)",
+            f"project({self.project.name.lower().replace('-', '_').replace(' ', '_')})",
+        )
+        with open(
+            self.project_dir / "CMakeLists.txt",
+            "w",
+        ) as f:
+            f.write(cmake_content)
+        with open(
+            self.project_dir / "Projects/Android/build.gradle",
+            "r",
+        ) as f:
+            gradle_content = f.read()
+        gradle_content = gradle_content.replace(
+            'targets "vr_engine"',
+            f"targets \"{self.project.name.lower().replace('-', '_').replace(' ', '_')}\"",
+        )
+        with open(
+            self.project_dir / "Projects/Android/build.gradle",
+            "w",
+        ) as f:
+            f.write(gradle_content)
         with open(
             self.project_dir / "res/values/strings.xml",
             "r",

@@ -211,14 +211,6 @@ public:
                 (xrGetInstanceProcAddr(GetInstance(), "xrLoadControllerModelMSFT", (PFN_xrVoidFunction *)&pfnLoadControllerModelMSFT_) == XR_SUCCESS);
         }
 
-        if (controllerModelExtSupported_)
-        {
-            const bool leftLoaded = TryLoadSystemControllerModel(LeftHandPath, true);
-            const bool rightLoaded = TryLoadSystemControllerModel(RightHandPath, false);
-            ALOG("Controller models loaded (L:%d R:%d) via XR_MSFT_controller_model", leftLoaded ? 1 : 0, rightLoaded ? 1 : 0);
-        }
-        // Nothing to push; glb surfaces will be emitted during Render.
-
         // Enable passthrough if the runtime and manifest support it.
         // Note: actual passthrough surfaces require XR_FB_passthrough session objects.
         if (ctx_)
@@ -516,50 +508,6 @@ private:
     bool rightPinchActive_ = false;
     std::vector<uint8_t> controllerModelBufL_;
     std::vector<uint8_t> controllerModelBufR_;
-
-    bool TryLoadSystemControllerModel(XrPath userPath, bool isLeft)
-    {
-        if (!controllerModelExtSupported_ || !pfnGetControllerModelKeyMSFT_ || !pfnLoadControllerModelMSFT_)
-        {
-            return false;
-        }
-
-        XrControllerModelKeyStateMSFT keyState{XR_TYPE_CONTROLLER_MODEL_KEY_STATE_MSFT};
-        if (pfnGetControllerModelKeyMSFT_(GetSession(), userPath, &keyState) != XR_SUCCESS)
-        {
-            return false;
-        }
-
-        if (keyState.modelKey == XR_NULL_CONTROLLER_MODEL_KEY_MSFT)
-        {
-            return false;
-        }
-
-        uint32_t needed = 0;
-        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, 0, &needed, nullptr) != XR_SUCCESS || needed == 0)
-        {
-            return false;
-        }
-
-        std::vector<uint8_t> buffer(needed);
-        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, needed, &needed, buffer.data()) != XR_SUCCESS)
-        {
-            return false;
-        }
-
-        bool loaded = false;
-        if (isLeft)
-        {
-            controllerModelBufL_ = std::move(buffer);
-            loaded = controllerRenderL_.LoadModelFromBuffer(controllerModelBufL_.data(), controllerModelBufL_.size());
-        }
-        else
-        {
-            controllerModelBufR_ = std::move(buffer);
-            loaded = controllerRenderR_.LoadModelFromBuffer(controllerModelBufR_.data(), controllerModelBufR_.size());
-        }
-        return loaded;
-    }
 
     void InitHandTracking()
     {

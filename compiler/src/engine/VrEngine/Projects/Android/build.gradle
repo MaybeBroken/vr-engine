@@ -36,6 +36,7 @@ apply plugin: 'com.android.application'
 
 android {
   compileSdk 32
+  ndkVersion "25.2.9519653"
 
   defaultConfig {
     applicationId 'com.maybebroken.VrEngine'
@@ -44,17 +45,22 @@ android {
     versionCode 1
     versionName "1.0"
 
-    // override app plugin abiFilters for 64-bit support
+    ndk {
+      abiFilters "arm64-v8a"
+    }
+
     externalNativeBuild {
-      ndk {
-        abiFilters 'arm64-v8a'
-      }
-      ndkBuild {
-        abiFilters 'arm64-v8a'
-      }
       cmake {
-         targets "xrsamples_xrhands_and_controllers"
+        targets "vr_engine"
+        cppFlags "-std=c++20"
       }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path file('../../../../CMakeLists.txt')
+      version "4.1.2"
     }
   }
 

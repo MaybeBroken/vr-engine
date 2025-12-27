@@ -106,6 +106,14 @@ def _load_prefs():
         return PREF_DEFAULTS.copy()
 
 
+def _save_prefs():
+    try:
+        with open(PREF_PATH, "wb") as f:
+            f.write(base64.b64encode(json.dumps(pref_data, indent=4).encode()))
+    except Exception:
+        pass
+
+
 pref_data = _load_prefs()
 
 
@@ -133,6 +141,7 @@ pref_data["search_paths"] = [str(p) for p in _SEARCH_PATHS]
 pref_data["project_root"] = (
     pref_data.get("project_root") or pref_data["search_paths"][0]
 )
+_save_prefs()
 PROJECTS_DIR = _SEARCH_PATHS[0]
 
 
@@ -150,6 +159,7 @@ def _set_search_paths(paths: list[Path]):
     PROJECTS_DIR = _SEARCH_PATHS[0]
     pref_data["search_paths"] = [str(p) for p in _SEARCH_PATHS]
     pref_data["project_root"] = pref_data["search_paths"][0]
+    _save_prefs()
 
 
 XR_SAMPLES_DIR = (Path(__file__).parent.parent / "XrSamples").resolve()
@@ -163,6 +173,7 @@ def _add_recent_project(path: Path):
         lst.remove(p_str)
     lst.insert(0, p_str)
     pref_data["recent_projects"] = lst[:30]
+    _save_prefs()
 
 
 def _remove_recent_project(path: Path):
@@ -170,6 +181,7 @@ def _remove_recent_project(path: Path):
     pref_data["recent_projects"] = [
         p for p in pref_data.get("recent_projects", []) if p != p_str
     ]
+    _save_prefs()
 
 
 def _available_projects():
@@ -192,11 +204,7 @@ def _find_project_by_name(name: str) -> Optional[Path]:
 
 
 def exit_handler():
-    try:
-        with open(PREF_PATH, "wb") as f:
-            f.write(base64.b64encode(json.dumps(pref_data, indent=4).encode()))
-    except Exception:
-        pass
+    _save_prefs()
 
 
 atexit.register(exit_handler)
@@ -369,6 +377,7 @@ class ProjectManager(QWidget):
             p.mkdir(exist_ok=True, parents=True)
         pref_data["search_paths"] = [str(p.resolve()) for p in _SEARCH_PATHS]
         pref_data["project_root"] = pref_data["search_paths"][0]
+        _save_prefs()
         PROJECTS_DIR = _SEARCH_PATHS[0]
 
     def _open_locations_dialog(self):
@@ -606,6 +615,7 @@ class ProjectManager(QWidget):
         self._set_selection_state(True)
         self.selectedLabel.setText(self._selected.name)
         _add_recent_project(self._selected)
+        _save_prefs()
 
     def clear_selection(self):
         self._selected = None
@@ -614,6 +624,7 @@ class ProjectManager(QWidget):
             t.setSelected(False)
         self._set_selection_state(False)
         self.selectedLabel.setText("None selected")
+        _save_prefs()
 
     def eventFilter(self, source, event):
         if source is self.scrollWidget and event.type() == QEvent.MouseButtonPress:
@@ -632,6 +643,7 @@ class ProjectManager(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         pref_data["window_size"] = [self.width(), self.height()]
+        _save_prefs()
         QTimer.singleShot(0, self.rebuildProjectsGrid)
 
     # -------- Buttons --------
@@ -698,6 +710,7 @@ class ProjectManager(QWidget):
         _add_recent_project(project_path)
         pref_data["last_project"] = project_path.name
         self.projectSelected.emit(project_path.name)
+        _save_prefs()
 
     def deleteProject(self, project_path: Path):
         project_name = project_path.name
@@ -717,6 +730,7 @@ class ProjectManager(QWidget):
                 pref_data["last_project"] = ""
             self.clear_selection()
             self.rebuildProjectsGrid()
+            _save_prefs()
         except Exception as e:
             QMessageBox.critical(self, "Delete Project", f"Failed to delete: {e}")
 
@@ -788,6 +802,7 @@ class ProjectManager(QWidget):
                     project_name = new_project_name
                     _remove_recent_project(current_path)
                     _add_recent_project(project_path)
+                    _save_prefs()
                 except Exception as e:
                     QMessageBox.critical(self, "Rename Failed", str(e))
                     return
@@ -810,13 +825,17 @@ class ProjectManager(QWidget):
 
             self._selected = project_path
             self.rebuildProjectsGrid()
+            _save_prefs()
 
     def createNewProject(self):
         class NewProjectDialog(QDialog):
-            def __init__(self, existing: list[str], parent=None):
+            def __init__(self, paths: list[Path], parent=None):
                 super().__init__(parent)
                 self.setWindowTitle("New Project")
                 self.setModal(True)
+
+                self.paths = [Path(p) for p in paths] or [_default_project_root()]
+                self.selected_path = self.paths[0]
 
                 self.projectNameInput = QLineEdit(self)
                 self.projectNameInput.setPlaceholderText("my_vr_project")
@@ -837,6 +856,20 @@ class ProjectManager(QWidget):
                     ]
                 )
 
+                self.locationBox = QComboBox(self)
+                for p in self.paths:
+                    self.locationBox.addItem(str(p))
+                self.locationBox.currentIndexChanged.connect(self._on_location_changed)
+                self.browseBtn = QPushButton("Browse...", self)
+                self.browseBtn.clicked.connect(self._browse_location)
+                locRow = QHBoxLayout()
+                locRow.setContentsMargins(0, 0, 0, 0)
+                locRow.setSpacing(6)
+                locRow.addWidget(self.locationBox, 1)
+                locRow.addWidget(self.browseBtn)
+                locWidget = QWidget(self)
+                locWidget.setLayout(locRow)
+
                 self.errorLabel = QLabel("", self)
                 self.errorLabel.setStyleSheet("color: #c00;")
                 self.errorLabel.setWordWrap(True)
@@ -854,18 +887,39 @@ class ProjectManager(QWidget):
                 form.addRow("Project name:", self.projectNameInput)
                 form.addRow("Template:", self.templateSelectionChoice)
                 form.addRow("Android Manifest:", self.manifestModeSelectionChoice)
+                form.addRow("Location:", locWidget)
                 form.addRow(self.errorLabel)
                 form.addRow(buttons)
                 self.setLayout(form)
-                self.resize(420, 0)
+                self.resize(480, 0)
 
-                self.projectNameInput.textChanged.connect(
-                    lambda: self._validate(existing)
-                )
-                self._validate(existing)
+                self.projectNameInput.textChanged.connect(self._validate)
+                self._validate()
                 self.projectNameInput.setFocus()
 
-            def _validate(self, existing: list[str]):
+            def _on_location_changed(self, idx: int):
+                try:
+                    self.selected_path = Path(self.locationBox.itemText(idx))
+                except Exception:
+                    self.selected_path = _default_project_root()
+                self._validate()
+
+            def _browse_location(self):
+                chosen = QFileDialog.getExistingDirectory(
+                    self, "Select project folder", str(self.selected_path)
+                )
+                if chosen:
+                    p = Path(chosen)
+                    if all(p != existing for existing in self.paths):
+                        self.paths.insert(0, p)
+                        self.locationBox.insertItem(0, str(p))
+                    self.selected_path = p
+                    self.locationBox.setCurrentText(str(p))
+                    self._validate()
+                else:
+                    self.locationBox.setCurrentText(str(self.selected_path))
+
+            def _validate(self):
                 name = self.projectNameInput.text().strip()
                 if not name:
                     self.errorLabel.setText("Enter a project name.")
@@ -875,8 +929,11 @@ class ProjectManager(QWidget):
                     self.errorLabel.setText("Use only letters, numbers, _, -.")
                     self.okButton.setEnabled(False)
                     return
-                if name in existing:
-                    self.errorLabel.setText(f"'{name}' already exists.")
+                target = (self.selected_path or _default_project_root()) / name
+                if target.exists():
+                    self.errorLabel.setText(
+                        f"'{name}' already exists in selected location."
+                    )
                     self.okButton.setEnabled(False)
                     return
                 self.errorLabel.setText("")
@@ -885,11 +942,32 @@ class ProjectManager(QWidget):
             def _tryAccept(self):
                 self.accept() if self.okButton.isEnabled() else None
 
-        existing_names = [p.name for p in _available_projects()]
-        dlg = NewProjectDialog(existing_names, self)
+            def result_path(self) -> Path:
+                return self.selected_path or _default_project_root()
+
+            def updated_paths(self) -> list[Path]:
+                # Keep order as shown; ensure unique
+                seen = set()
+                uniq = []
+                for p in self.paths:
+                    rp = p.resolve()
+                    if rp not in seen:
+                        uniq.append(rp)
+                        seen.add(rp)
+                return uniq
+
+        search_paths = _get_search_paths()
+        dlg = NewProjectDialog(search_paths, self)
         if dlg.exec() == QMessageBox.Accepted:
             project_name = dlg.projectNameInput.text().strip()
-            project_path = PROJECTS_DIR / project_name
+            selected_root = dlg.result_path()
+            # Move chosen location to front and persist search paths (adds browse selection automatically)
+            ordered_paths = [selected_root] + [
+                p for p in dlg.updated_paths() if p != selected_root
+            ]
+            _set_search_paths(ordered_paths)
+
+            project_path = selected_root / project_name
             template_choice = dlg.templateSelectionChoice.currentText()
             manifest_idx = dlg.manifestModeSelectionChoice.currentIndex()
 
@@ -918,6 +996,7 @@ class ProjectManager(QWidget):
                 self.rebuildProjectsGrid()
                 self.projectViewer = ProjectViewer(project_path, self)
                 self.projectViewer.show()
+                _save_prefs()
             except Exception as e:
                 QMessageBox.critical(
                     self, "New Project", f"Failed to create project:\n{e}"
@@ -1869,7 +1948,7 @@ class ProjectViewer(QWidget):
         except Exception:
             pass
         try:
-            build_project(self.project_name, open_in_android_studio=True)
+            build_project(self.project_path, open_in_android_studio=False)
             if hasattr(self, "console"):
                 self.console.appendPlainText("== Build finished ==")
         except Exception as e:
