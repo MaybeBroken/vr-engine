@@ -21,7 +21,8 @@ public:
     void Shutdown();
 
     // Acquire the latest depth and upload to texture. Returns true if valid this frame.
-    bool AcquireAndUpload(XrTime predictedTime);
+    // baseSpace should be the XrSpace used for rendering the scene (for correct pose reprojection).
+    bool AcquireAndUpload(XrTime predictedTime, XrSpace baseSpace);
 
     // GL texture with depth in meters (format depends on runtime; we upload as float).
     GLuint GetTexture() const { return depthTex_; }
@@ -61,6 +62,10 @@ private:
     typedef XrResult(XRAPI_PTR *PFN_xrReleaseEnvironmentDepthSwapchainImageMETA)(
         XrEnvironmentDepthSwapchainMETA swapchain,
         uint32_t imageIndex);
+    typedef XrResult(XRAPI_PTR *PFN_xrStartEnvironmentDepthProviderMETA)(
+        XrEnvironmentDepthProviderMETA provider);
+    typedef XrResult(XRAPI_PTR *PFN_xrStopEnvironmentDepthProviderMETA)(
+        XrEnvironmentDepthProviderMETA provider);
     typedef XrResult(XRAPI_PTR *PFN_xrGetEnvironmentDepthSwapchainStateMETA)(
         XrEnvironmentDepthSwapchainMETA swapchain,
         XrEnvironmentDepthSwapchainStateMETA *state);
@@ -79,6 +84,8 @@ private:
     PFN_xrAcquireEnvironmentDepthSwapchainImageMETA pfnAcquireImage_ = nullptr;
     PFN_xrReleaseEnvironmentDepthSwapchainImageMETA pfnReleaseImage_ = nullptr;
     PFN_xrGetEnvironmentDepthSwapchainStateMETA pfnGetSwapchainState_ = nullptr;
+    PFN_xrStartEnvironmentDepthProviderMETA pfnStartProvider_ = nullptr;
+    PFN_xrStopEnvironmentDepthProviderMETA pfnStopProvider_ = nullptr;
     PFN_xrAcquireEnvironmentDepthImageMETA pfnAcquireImageOld_ = nullptr; // legacy v1 acquire (no release)
 #if defined(XR_TYPE_ENVIRONMENT_DEPTH_FRAME_STATE_META)
     PFN_xrGetEnvironmentDepthFrameStateMETA pfnGetFrameState_ = nullptr;  // legacy frame-state API
@@ -91,6 +98,7 @@ private:
     int acquiredIndex_ = -1;
     bool supported_ = false;
     bool useOldFrameApi_ = false; // true when not using the newer swapchain acquire/release API
+    bool providerStarted_ = false;
 
     enum class DepthApiMode
     {

@@ -5,6 +5,8 @@
 #include <functional>
 #include <unordered_map>
 #include <optional>
+#include <array>
+#include <openxr/openxr.h>
 #include "OVR_Math.h"
 #include "OVR_FileSys.h"
 #include "Model/ModelFile.h"
@@ -39,6 +41,84 @@ namespace CTX
         None,
         Local,
         Global
+    };
+
+    enum class Hand
+    {
+        Left = 0,
+        Right = 1
+    };
+
+    enum class InputKind
+    {
+        None,
+        Controller,
+        Hand
+    };
+
+    struct ControllerState
+    {
+        bool tracked = false;
+        OVR::Posef aimPose{};
+        OVR::Posef gripPose{};
+        OVR::Vector2f joystick{0.0f};
+        float trigger = 0.0f;
+        float grip = 0.0f;
+        bool triggerClick = false;
+        bool gripClick = false;
+        bool stickClick = false;
+        bool buttonA = false;
+        bool buttonB = false;
+        bool buttonX = false;
+        bool buttonY = false;
+        bool buttonMenu = false;
+        uint32_t rawButtons = 0;
+    };
+
+    struct HandJoint
+    {
+        OVR::Posef pose{};
+        float radius = 0.0f;
+        bool valid = false;
+    };
+
+    struct HandState
+    {
+        bool isActive = false;
+        bool highConfidence = false;
+        OVR::Posef root = OVR::Posef::Identity();
+        float scale = 1.0f;
+        std::array<HandJoint, XR_HAND_JOINT_COUNT_EXT> joints{};
+    };
+
+    struct InputSnapshot
+    {
+        ControllerState controllers[2];
+        HandState hands[2];
+
+        InputKind ActiveKind(Hand h) const
+        {
+            const size_t idx = (h == Hand::Left) ? 0 : 1;
+            if (hands[idx].isActive)
+            {
+                return InputKind::Hand;
+            }
+            if (controllers[idx].tracked)
+            {
+                return InputKind::Controller;
+            }
+            return InputKind::None;
+        }
+
+        const ControllerState &Controller(Hand h) const
+        {
+            return controllers[(h == Hand::Left) ? 0 : 1];
+        }
+
+        const HandState &HandInfo(Hand h) const
+        {
+            return hands[(h == Hand::Left) ? 0 : 1];
+        }
     };
 
     class Model
@@ -258,11 +338,27 @@ namespace CTX
             }
         }
 
+        void SetControllerState(Hand hand, const ControllerState &state)
+        {
+            input_.controllers[hand == Hand::Left ? 0 : 1] = state;
+        }
+
+        void SetHandState(Hand hand, const HandState &state)
+        {
+            input_.hands[hand == Hand::Left ? 0 : 1] = state;
+        }
+
+        InputSnapshot GetInputSnapshot() const { return input_; }
+        InputKind GetActiveInputKind(Hand hand) const { return input_.ActiveKind(hand); }
+        const HandState &GetHandState(Hand hand) const { return input_.HandInfo(hand); }
+        const ControllerState &GetControllerState(Hand hand) const { return input_.Controller(hand); }
+
     private:
         std::vector<std::unique_ptr<Model>> models_;
         OVR::Matrix4f modelMatrix_;
         bool passthroughEnabled_ = false;
         std::unordered_map<Action, Callback> callbacks_;
+        InputSnapshot input_{};
     };
 
 } // namespace CTX

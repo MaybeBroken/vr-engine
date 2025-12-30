@@ -30,6 +30,7 @@ Authors     :   Federico Schliemann
 #include <vector>
 #include <string>
 #include <memory>
+#include <cstddef>
 
 /// Sample Framework
 #include "Model/SceneView.h"
@@ -56,6 +57,9 @@ class ControllerRenderer {
     void Shutdown();
     void Update(const OVR::Posef& pose);
     void Render(std::vector<ovrDrawSurface>& surfaceList);
+
+    // Load a GLB buffer from memory (e.g., runtime-provided controller model)
+    bool LoadModelFromGlbBuffer(const uint8_t* data, size_t size);
 
     bool IsLeft() const {
         return isLeftController;

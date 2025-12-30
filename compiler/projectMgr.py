@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QPlainTextEdit,
+    QTextEdit,
     QStackedWidget,
     QScrollArea,
     QTreeWidget,
@@ -34,6 +35,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect,
     QListWidget,
+    QListWidgetItem,
 )
 from PySide6.QtGui import (
     QSyntaxHighlighter,
@@ -46,6 +48,7 @@ from PySide6.QtGui import (
     QImageReader,
     QPixmap,
     QFontDatabase,
+    QBrush,
 )
 from PySide6.QtCore import (
     QSortFilterProxyModel,
@@ -1416,6 +1419,32 @@ class ProjectViewer(QWidget):
         self.tree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         leftLayout.addWidget(self.tree, 1)
 
+        # Built outputs panel
+        self.outputsFrame = QFrame(self)
+        self.outputsFrame.setObjectName("OutputsFrame")
+        ofLayout = QVBoxLayout(self.outputsFrame)
+        ofLayout.setContentsMargins(6, 6, 6, 6)
+        ofLayout.setSpacing(6)
+        hdrRow = QHBoxLayout()
+        hdrRow.setContentsMargins(0, 0, 0, 0)
+        hdrRow.setSpacing(6)
+        self.outputsLabel = QLabel("Built Resources", self.outputsFrame)
+        self.outputsLabel.setObjectName("OutputsLabel")
+        self.refreshOutputsBtn = QPushButton("Refresh", self.outputsFrame)
+        hdrRow.addWidget(self.outputsLabel)
+        hdrRow.addStretch(1)
+        hdrRow.addWidget(self.refreshOutputsBtn)
+        ofLayout.addLayout(hdrRow)
+        self.outputsPathLabel = QLabel("", self.outputsFrame)
+        self.outputsPathLabel.setObjectName("OutputsPath")
+        self.outputsPathLabel.setStyleSheet("color: #8c8c8c; font-size: 11px;")
+        ofLayout.addWidget(self.outputsPathLabel)
+        self.outputsList = QListWidget(self.outputsFrame)
+        self.outputsList.setSelectionMode(QListWidget.SingleSelection)
+        self.outputsList.setMinimumHeight(120)
+        ofLayout.addWidget(self.outputsList)
+        leftLayout.addWidget(self.outputsFrame, 0)
+
         self.mainSplitter.addWidget(leftPane)
         # Prefer right side to stretch
         self.mainSplitter.setStretchFactor(0, 0)
@@ -1528,9 +1557,299 @@ class ProjectViewer(QWidget):
         self.actionClearConsole = QAction("Clear", self.consoleToolbar)
         self.consoleToolbar.addAction(self.actionClearConsole)
         _cl.addWidget(self.consoleToolbar)
-        self.console = QPlainTextEdit(self.consolePane)
-        self.console.setReadOnly(True)
-        self.console.setMaximumBlockCount(5000)
+
+        class AnsiTerminal(QTextEdit):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.setReadOnly(True)
+                self.setAcceptRichText(True)
+                self.document().setMaximumBlockCount(5000)
+                font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+                self.setFont(font)
+                self._fmt = QTextCharFormat()
+                self._fmt.setFont(font)
+                self._state = "normal"
+                self._csi = ""
+                self._fg = None
+                self._bg = None
+                self._bold = False
+                self._saved_cursor: tuple[int, int] | None = None
+                self._reset_format()
+
+            def _reset_format(self):
+                self._fmt = QTextCharFormat()
+                self._fmt.setFont(self.font())
+                self._fmt.setForeground(QBrush(QColor("#e0e0e0")))
+                self._fmt.setBackground(QBrush(Qt.transparent))
+                self._fmt.setFontWeight(QFont.Normal)
+
+            def _apply_sgr(self, params):
+                if params == []:
+                    params = [0]
+
+                i = 0
+                while i < len(params):
+                    p = params[i]
+                    if p == 0:
+                        self._bold = False
+                        self._fg = None
+                        self._bg = None
+                        self._reset_format()
+                    elif p == 1:
+                        self._bold = True
+                        self._fmt.setFontWeight(QFont.DemiBold)
+                    elif p == 22:
+                        self._bold = False
+                        self._fmt.setFontWeight(QFont.Normal)
+                    elif p == 39:
+                        self._fg = None
+                        self._fmt.setForeground(QBrush(QColor("#e0e0e0")))
+                    elif p == 49:
+                        self._bg = None
+                        self._fmt.setBackground(QBrush(Qt.transparent))
+                    elif 30 <= p <= 37:
+                        self._fg = self._ansi_color(p - 30, bright=False)
+                        self._fmt.setForeground(QBrush(self._fg))
+                    elif 90 <= p <= 97:
+                        self._fg = self._ansi_color(p - 90, bright=True)
+                        self._fmt.setForeground(QBrush(self._fg))
+                    elif 40 <= p <= 47:
+                        self._bg = self._ansi_color(p - 40, bright=False)
+                        self._fmt.setBackground(QBrush(self._bg))
+                    elif 100 <= p <= 107:
+                        self._bg = self._ansi_color(p - 100, bright=True)
+                        self._fmt.setBackground(QBrush(self._bg))
+                    elif p in (38, 48):
+                        # Extended color: 38/48 ; 5 ; idx or 2 ; r ; g ; b
+                        if i + 1 < len(params):
+                            mode = params[i + 1]
+                            if mode == 5 and i + 2 < len(params):
+                                color = self._ansi_256(params[i + 2])
+                                if p == 38:
+                                    self._fg = color
+                                    self._fmt.setForeground(QBrush(color))
+                                else:
+                                    self._bg = color
+                                    self._fmt.setBackground(QBrush(color))
+                                i += 3
+                                continue
+                            if mode == 2 and i + 4 < len(params):
+                                color = QColor(
+                                    max(0, min(params[i + 2], 255)),
+                                    max(0, min(params[i + 3], 255)),
+                                    max(0, min(params[i + 4], 255)),
+                                )
+                                if p == 38:
+                                    self._fg = color
+                                    self._fmt.setForeground(QBrush(color))
+                                else:
+                                    self._bg = color
+                                    self._fmt.setBackground(QBrush(color))
+                                i += 5
+                                continue
+                    i += 1
+
+            def _ansi_color(self, idx, bright=False):
+                base = [
+                    QColor("#000000"),
+                    QColor("#800000"),
+                    QColor("#008000"),
+                    QColor("#808000"),
+                    QColor("#000080"),
+                    QColor("#800080"),
+                    QColor("#008080"),
+                    QColor("#c0c0c0"),
+                ]
+                bright_base = [
+                    QColor("#808080"),
+                    QColor("#ff0000"),
+                    QColor("#00ff00"),
+                    QColor("#ffff00"),
+                    QColor("#0000ff"),
+                    QColor("#ff00ff"),
+                    QColor("#00ffff"),
+                    QColor("#ffffff"),
+                ]
+                palette = bright_base if bright else base
+                idx = max(0, min(idx, 7))
+                return palette[idx]
+
+            def _ansi_256(self, idx: int) -> QColor:
+                idx = max(0, min(idx, 255))
+                if idx < 16:
+                    # reuse basic palette (0-15)
+                    bright = idx >= 8
+                    return self._ansi_color(idx - (8 if bright else 0), bright)
+                if 16 <= idx <= 231:
+                    idx -= 16
+                    r = (idx // 36) % 6
+                    g = (idx // 6) % 6
+                    b = idx % 6
+                    return QColor(r * 51, g * 51, b * 51)
+                # grayscale 232-255
+                level = 8 + (idx - 232) * 10
+                return QColor(level, level, level)
+
+            def _clear_to_end_of_line(self):
+                cursor = self.textCursor()
+                cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+                cursor.removeSelectedText()
+                self.setTextCursor(cursor)
+
+            def _clear_line(self, mode: int = 0):
+                # mode 0: cursor->EOL, 1: SOL->cursor, 2: entire line
+                cursor = self.textCursor()
+                block = cursor.block()
+                start = block.position()
+                end = start + block.length() - 1  # omit trailing newline
+                if mode == 0:
+                    start_sel = cursor.position()
+                    end_sel = end
+                elif mode == 1:
+                    start_sel = start
+                    end_sel = cursor.position()
+                else:
+                    start_sel = start
+                    end_sel = end
+                tmp = QTextCursor(self.document())
+                tmp.setPosition(start_sel)
+                tmp.setPosition(end_sel, QTextCursor.KeepAnchor)
+                tmp.removeSelectedText()
+                self.setTextCursor(tmp)
+
+            def _move_cursor_rel(self, dx, dy):
+                current = self.textCursor()
+                doc = self.document()
+                block_num = current.blockNumber() + dy
+                block_num = max(0, min(block_num, doc.blockCount() - 1))
+                block = doc.findBlockByNumber(block_num)
+                cursor = QTextCursor(block)
+                col = max(0, current.positionInBlock() + dx)
+                col = min(col, block.length() - 1)
+                cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, col)
+                self.setTextCursor(cursor)
+
+            def _cursor_to(self, row: int, col: int):
+                row = max(0, row)
+                col = max(0, col)
+                doc = self.document()
+                while doc.blockCount() <= row:
+                    c = QTextCursor(doc)
+                    c.movePosition(QTextCursor.End)
+                    c.insertBlock()
+                block = doc.findBlockByNumber(row)
+                cursor = QTextCursor(block)
+                text_len = block.length() - 1
+                if col > text_len:
+                    cursor.movePosition(QTextCursor.EndOfBlock)
+                    cursor.insertText(" " * (col - text_len))
+                cursor = QTextCursor(block)
+                cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, col)
+                self.setTextCursor(cursor)
+
+            def _handle_csi(self, seq):
+                # seq includes trailing final char
+                if not seq:
+                    return
+                final = seq[-1]
+                params = seq[:-1]
+                parts: list[int] = []
+                if params:
+                    for p in params.split(";"):
+                        p = p.lstrip("?")
+                        if p == "":
+                            parts.append(0)
+                            continue
+                        try:
+                            parts.append(int(p))
+                        except ValueError:
+                            continue
+                if final == "m":
+                    self._apply_sgr(parts)
+                elif final == "K":
+                    mode = parts[0] if parts else 0
+                    if mode == 0:
+                        self._clear_to_end_of_line()
+                    elif mode == 1:
+                        self._clear_line(1)
+                    elif mode == 2:
+                        self._clear_line(2)
+                elif final == "J":
+                    mode = parts[0] if parts else 0
+                    if mode in (2, 3):
+                        self.clear()
+                        self._reset_format()
+                elif final in ("A", "B", "C", "D"):
+                    count = parts[0] if parts else 1
+                    dy = -count if final == "A" else count if final == "B" else 0
+                    dx = count if final == "C" else -count if final == "D" else 0
+                    self._move_cursor_rel(dx, dy)
+                elif final in ("H", "f"):
+                    row = parts[0] if parts else 1
+                    col = parts[1] if len(parts) > 1 else 1
+                    self._cursor_to(row - 1, col - 1)
+                elif final == "G":
+                    col = parts[0] if parts else 1
+                    self._cursor_to(self.textCursor().blockNumber(), col - 1)
+                elif final == "s":
+                    c = self.textCursor()
+                    self._saved_cursor = (c.blockNumber(), c.positionInBlock())
+                elif final == "u" and self._saved_cursor:
+                    row, col = self._saved_cursor
+                    self._cursor_to(row, col)
+                else:
+                    # Ignore other sequences like ?25l/?25h (cursor visibility)
+                    pass
+
+            def write(self, text):
+                cursor = self.textCursor()
+                i = 0
+                while i < len(text):
+                    ch = text[i]
+                    if self._state == "normal":
+                        if ch == "\x1b":
+                            self._state = "esc"
+                        elif ch == "\n":
+                            cursor.insertBlock()
+                        elif ch == "\r":
+                            cursor.movePosition(QTextCursor.StartOfBlock)
+                            self._clear_to_end_of_line()
+                            cursor = self.textCursor()
+                        elif ch == "\b":
+                            cursor.deletePreviousChar()
+                        else:
+                            block_len = cursor.block().length() - 1  # ignore implicit newline
+                            col = cursor.positionInBlock()
+                            if col < block_len:
+                                cursor.deleteChar()
+                            cursor.insertText(ch, self._fmt)
+                    elif self._state == "esc":
+                        if ch == "[":
+                            self._state = "csi"
+                            self._csi = ""
+                        else:
+                            self._state = "normal"
+                    elif self._state == "csi":
+                        if ch.isalpha() or ch == "m" or ch == "~":
+                            self._csi += ch
+                            self._handle_csi(self._csi)
+                            self._state = "normal"
+                        else:
+                            self._csi += ch
+                    i += 1
+                self.setTextCursor(cursor)
+                self.ensureCursorVisible()
+
+            def flush(self):
+                pass
+
+            def fileno(self):
+                return -1
+
+            def isatty(self):
+                return True
+
+        self.console = AnsiTerminal(self.consolePane)
         self.console.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         _cl.addWidget(self.console, 1)
         self.rightSplitter.addWidget(self.consolePane)
@@ -1546,6 +1865,8 @@ class ProjectViewer(QWidget):
         # State
         self.currentFilePath = None
         self._dirty = False
+        self._build_stop = None
+        self._build_thread = None
 
         # Signals
         self.buildAction.triggered.connect(self.buildProject)
@@ -1558,6 +1879,8 @@ class ProjectViewer(QWidget):
         self.tree.doubleClicked.connect(self._onTreeDoubleClicked)
         self.searchBox.textChanged.connect(self.proxyModel.setText)
         self.kindFilter.currentTextChanged.connect(self.proxyModel.setKind)
+        self.refreshOutputsBtn.clicked.connect(self._refreshOutputs)
+        self.outputsList.itemDoubleClicked.connect(self._onOutputActivated)
         self.actionExtract.triggered.connect(self._extractArchive)
         self.fontSizeSlider.valueChanged.connect(self._updateFontSampleSize)
         self.actionPlayPause.triggered.connect(self._togglePlayPause)
@@ -1604,6 +1927,14 @@ class ProjectViewer(QWidget):
             pass
 
     def closeEvent(self, e):
+        # Cancel running build, if any
+        try:
+            if getattr(self, "_build_stop", None) is not None:
+                self._build_stop.set()
+            if getattr(self, "_build_thread", None) is not None:
+                self._build_thread.join(timeout=2)
+        except Exception:
+            pass
         # Ask to save if dirty
         if self._dirty and self.currentFilePath:
             res = QMessageBox.question(
@@ -1655,10 +1986,100 @@ class ProjectViewer(QWidget):
                 pidx = self.proxyModel.mapFromSource(idx)
                 if pidx.isValid():
                     self.tree.setExpanded(pidx, True)
+        self._refreshOutputs()
 
     def _refreshTree(self):
         self.fsModel.setRootPath(self.project_root)
         self.populateLists()
+
+    def _refreshOutputs(self):
+        self.outputsList.clear()
+        self.outputsList.setEnabled(True)
+        outputs = self._collect_outputs()
+        if not outputs:
+            self.outputsList.addItem("No build outputs found")
+            self.outputsList.setEnabled(False)
+            self.outputsPathLabel.setText("")
+            return
+
+        # Show the first base path as hint
+        hint_path = outputs[0].get("base")
+        self.outputsPathLabel.setText(str(hint_path) if hint_path else "")
+
+        for entry in outputs:
+            variant = entry.get("variant") or "?"
+            apk = entry.get("file")
+            ver = entry.get("versionName") or ""
+            label = f"{variant}: {apk.name if apk else '?'}"
+            if ver:
+                label += f" (v{ver})"
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, entry)
+            self.outputsList.addItem(item)
+
+    def _collect_outputs(self) -> list[dict]:
+        results: list[dict] = []
+        root = Path(self.project_root)
+        candidates = [
+            root / "Projects" / "Android" / "build" / "outputs",
+            root / "build" / "outputs",
+        ]
+        try:
+            xr_candidate = (
+                XR_SAMPLES_DIR
+                / self.project_name
+                / "Projects"
+                / "Android"
+                / "build"
+                / "outputs"
+            )
+            candidates.append(xr_candidate)
+        except Exception:
+            pass
+
+        seen_dirs = set()
+        for base in candidates:
+            try:
+                base = base.resolve()
+            except Exception:
+                continue
+            if base in seen_dirs or not base.exists():
+                continue
+            seen_dirs.add(base)
+            for meta in base.rglob("output-metadata.json"):
+                try:
+                    data = json.loads(meta.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                variant = data.get("variantName") or meta.parent.name
+                app_id = data.get("applicationId")
+                for el in data.get("elements", []):
+                    out_file = el.get("outputFile")
+                    if not out_file:
+                        continue
+                    apk_path = meta.parent / out_file
+                    results.append(
+                        {
+                            "variant": variant,
+                            "file": apk_path,
+                            "base": meta.parent,
+                            "applicationId": app_id,
+                            "versionName": el.get("versionName"),
+                            "versionCode": el.get("versionCode"),
+                        }
+                    )
+        return results
+
+    def _onOutputActivated(self, item):
+        data = item.data(Qt.UserRole)
+        if not data:
+            return
+        apk_path = data.get("file")
+        if apk_path and apk_path.exists():
+            try:
+                os.startfile(str(apk_path.parent))
+            except Exception:
+                pass
 
     def _openWithCode(self):
         def _th():
@@ -1836,10 +2257,8 @@ class ProjectViewer(QWidget):
     # Console helpers and panel visibility
     def _appendConsole(self, text: str):
         try:
-            # Avoid excessive newlines formatting; insert as-is
-            self.console.moveCursor(QTextCursor.End)
-            self.console.insertPlainText(text)
-            self.console.ensureCursorVisible()
+            if hasattr(self, "console"):
+                self.console.write(text)
         except Exception:
             pass
 
@@ -1941,20 +2360,46 @@ class ProjectViewer(QWidget):
             QMessageBox.critical(self, "Save File", f"Failed to save file:\n{e}")
 
     def buildProject(self):
-        # Log to console
-        try:
-            if hasattr(self, "console"):
-                self.console.appendPlainText("== Build started ==")
-        except Exception:
-            pass
-        try:
-            build_project(self.project_path, open_in_android_studio=False)
-            if hasattr(self, "console"):
-                self.console.appendPlainText("== Build finished ==")
-        except Exception as e:
-            if hasattr(self, "console"):
-                self.console.appendPlainText(f"Build failed: {e}")
-            raise
+        # Run build in a background thread and stream output via a thread-safe emitter
+        # so the UI stays responsive.
+        if hasattr(self, "console"):
+            try:
+                self.console.write("== Build started ==\n")
+            except Exception:
+                pass
+
+        emitter = ProjectViewer._StreamEmitter()
+        if hasattr(self, "console"):
+            emitter.text.connect(self._appendConsole)
+            pipe = ProjectViewer._EmittingStream(emitter)
+        else:
+            pipe = None
+
+        def _run_build():
+            try:
+                build_project(
+                    self.project_path,
+                    open_in_android_studio=False,
+                    compile_with_gradle=True,
+                    custom_pipe=pipe,
+                    use_pty=True,
+                    stop_event=self._build_stop,
+                )
+                if hasattr(self, "console"):
+                    if self._build_stop is not None and self._build_stop.is_set():
+                        emitter.text.emit("== Build cancelled ==")
+                    else:
+                        emitter.text.emit("== Build finished ==")
+            except Exception as e:
+                if hasattr(self, "console"):
+                    emitter.text.emit(f"Build failed: {e}")
+            finally:
+                self._build_stop = None
+                self._build_thread = None
+
+        self._build_stop = threading.Event()
+        self._build_thread = threading.Thread(target=_run_build, daemon=True)
+        self._build_thread.start()
 
     # -------- View helpers --------
     def _setView(self, idx):

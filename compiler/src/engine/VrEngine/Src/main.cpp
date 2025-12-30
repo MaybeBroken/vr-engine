@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 #include <openxr/openxr.h>
+#include <jni.h>
+#include <EGL/egl.h>
+#include <openxr/openxr_platform.h>
 #include <sstream>
 #include <iomanip>
 #include <thread>
@@ -15,16 +18,30 @@
 #include <cstring>
 #include "XrApp.h"
 #include "Input/ControllerRenderer.h"
+#include "Input/HandRenderer.h"
 #include "Input/TinyUI.h"
 #include "Render/SimpleBeamRenderer.h"
 #include "CTX.h"
 #include "OVR_Math.h"
 #include "EnvironmentDepthProvider.h"
 
+#ifndef XR_META_ENVIRONMENT_DEPTH_EXTENSION_NAME
+#define XR_META_ENVIRONMENT_DEPTH_EXTENSION_NAME "XR_META_environment_depth"
+#endif
+
+#ifndef XR_FB_HAND_TRACKING_MESH_EXTENSION_NAME
+#define XR_FB_HAND_TRACKING_MESH_EXTENSION_NAME "XR_FB_hand_tracking_mesh"
+#endif
+
+#ifndef XR_NULL_CONTROLLER_MODEL_KEY_MSFT
+#define XR_NULL_CONTROLLER_MODEL_KEY_MSFT 0
+#endif
+
 // Hand tracking EXT typedefs
 typedef XrResult(XRAPI_PTR *PFN_xrCreateHandTrackerEXT)(XrSession session, const XrHandTrackerCreateInfoEXT *createInfo, XrHandTrackerEXT *handTracker);
 typedef XrResult(XRAPI_PTR *PFN_xrDestroyHandTrackerEXT)(XrHandTrackerEXT handTracker);
 typedef XrResult(XRAPI_PTR *PFN_xrLocateHandJointsEXT)(XrHandTrackerEXT handTracker, const XrHandJointsLocateInfoEXT *locateInfo, XrHandJointLocationsEXT *locations);
+typedef XrResult(XRAPI_PTR *PFN_xrGetHandMeshFB)(XrHandTrackerEXT handTracker, XrHandTrackingMeshFB *mesh);
 
 // OpenXR FB Passthrough function pointer typedefs
 typedef XrResult(XRAPI_PTR *PFN_xrCreatePassthroughFB)(XrSession session, const XrPassthroughCreateInfoFB *createInfo, XrPassthroughFB *passthrough);
@@ -34,6 +51,10 @@ typedef XrResult(XRAPI_PTR *PFN_xrPassthroughPauseFB)(XrPassthroughFB passthroug
 typedef XrResult(XRAPI_PTR *PFN_xrCreatePassthroughLayerFB)(XrSession session, const XrPassthroughLayerCreateInfoFB *createInfo, XrPassthroughLayerFB *outLayer);
 typedef XrResult(XRAPI_PTR *PFN_xrDestroyPassthroughLayerFB)(XrPassthroughLayerFB layer);
 typedef XrResult(XRAPI_PTR *PFN_xrPassthroughLayerResumeFB)(XrPassthroughLayerFB layer);
+
+// Controller model extension typedefs
+typedef XrResult(XRAPI_PTR *PFN_xrGetControllerModelKeyMSFT)(XrSession session, XrPath topLevelUserPath, XrControllerModelKeyStateMSFT *controllerModelKeyState);
+typedef XrResult(XRAPI_PTR *PFN_xrLoadControllerModelMSFT)(XrSession session, XrControllerModelKeyMSFT modelKey, uint32_t bufferCapacityInput, uint32_t *bufferCountOutput, uint8_t *buffer);
 typedef XrResult(XRAPI_PTR *PFN_xrPassthroughLayerPauseFB)(XrPassthroughLayerFB layer);
 
 // INCLUDES_END
@@ -91,6 +112,15 @@ public:
             extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
         }
 
+        // Request hand tracking mesh for skinned hand rendering
+        const bool hasHandMesh = std::any_of(
+            props.begin(), props.end(), [](const XrExtensionProperties &p)
+            { return strcmp(p.extensionName, XR_FB_HAND_TRACKING_MESH_EXTENSION_NAME) == 0; });
+        if (hasHandMesh)
+        {
+            extensions.push_back(XR_FB_HAND_TRACKING_MESH_EXTENSION_NAME);
+        }
+
         // Request controller render models (high fidelity) if available.
         const bool hasControllerModel = std::any_of(
             props.begin(), props.end(), [](const XrExtensionProperties &p)
@@ -113,10 +143,10 @@ public:
         // Request environment depth (Meta Quest)
         const bool hasEnvDepth = std::any_of(
             props.begin(), props.end(), [](const XrExtensionProperties &p)
-            { return strcmp(p.extensionName, "XR_META_environment_depth") == 0; });
+            { return strcmp(p.extensionName, XR_META_ENVIRONMENT_DEPTH_EXTENSION_NAME) == 0; });
         if (hasEnvDepth)
         {
-            extensions.push_back("XR_META_environment_depth");
+            extensions.push_back(XR_META_ENVIRONMENT_DEPTH_EXTENSION_NAME);
         }
 
         // APP_EXTENSIONS_MOD_EXIT
@@ -196,6 +226,7 @@ public:
 
         // Load higher-fidelity controller models via XR_MSFT_controller_model if supported.
         controllerModelExtSupported_ = false;
+        handMeshSupported_ = false;
 
         // Check enabled extensions list
         auto exts = GetExtensions();
@@ -209,6 +240,18 @@ public:
             controllerModelExtSupported_ =
                 (xrGetInstanceProcAddr(GetInstance(), "xrGetControllerModelKeyMSFT", (PFN_xrVoidFunction *)&pfnGetControllerModelKeyMSFT_) == XR_SUCCESS) &&
                 (xrGetInstanceProcAddr(GetInstance(), "xrLoadControllerModelMSFT", (PFN_xrVoidFunction *)&pfnLoadControllerModelMSFT_) == XR_SUCCESS);
+        }
+        if (hasExt(XR_FB_HAND_TRACKING_MESH_EXTENSION_NAME))
+        {
+            handMeshSupported_ =
+                (xrGetInstanceProcAddr(GetInstance(), "xrGetHandMeshFB", (PFN_xrVoidFunction *)&pfnGetHandMeshFB_) == XR_SUCCESS);
+        }
+
+        // Attempt to load runtime-provided controller models (fall back to primitives on failure).
+        if (controllerModelExtSupported_)
+        {
+            LoadControllerModel(true);
+            LoadControllerModel(false);
         }
 
         // Enable passthrough if the runtime and manifest support it.
@@ -277,7 +320,18 @@ public:
         }
 
         // Initialize environment depth acquisition (Meta extension)
-        envDepthProvider_.Init(GetInstance(), GetSession());
+        envDepthEnabled_ = false;
+        if (hasExt(XR_META_ENVIRONMENT_DEPTH_EXTENSION_NAME))
+        {
+            XrSystemEnvironmentDepthPropertiesMETA depthProps{XR_TYPE_SYSTEM_ENVIRONMENT_DEPTH_PROPERTIES_META};
+            XrSystemProperties sysProps{XR_TYPE_SYSTEM_PROPERTIES};
+            sysProps.next = &depthProps;
+            if (xrGetSystemProperties(GetInstance(), GetSystemId(), &sysProps) == XR_SUCCESS &&
+                depthProps.supportsEnvironmentDepth)
+            {
+                envDepthEnabled_ = envDepthProvider_.Init(GetInstance(), GetSession());
+            }
+        }
 
         // Initialize hand tracking after session is ready
         InitHandTracking();
@@ -327,6 +381,15 @@ public:
                 rightHandTracker_ = XR_NULL_HANDLE;
             }
         }
+        handRendererL_.Shutdown();
+        handRendererR_.Shutdown();
+        handRendererReadyL_ = false;
+        handRendererReadyR_ = false;
+        if (envDepthEnabled_)
+        {
+            envDepthProvider_.Shutdown();
+            envDepthEnabled_ = false;
+        }
         // SESSION_END_MOD_EXIT
     }
     // SESSION_END_EXIT
@@ -337,19 +400,46 @@ public:
         // UPDATE_ENTRY
         // UPDATE_MOD_ENTRY
 
+        auto buildControllerState = [&](bool left) {
+            CTX::ControllerState st{};
+            const bool tracked = left ? in.LeftRemoteTracked : in.RightRemoteTracked;
+            st.tracked = tracked;
+            st.aimPose = left ? in.LeftRemotePointPose : in.RightRemotePointPose;
+            st.gripPose = left ? in.LeftRemotePose : in.RightRemotePose;
+            st.joystick = left ? in.LeftRemoteJoystick : in.RightRemoteJoystick;
+            st.trigger = left ? in.LeftRemoteIndexTrigger : in.RightRemoteIndexTrigger;
+            st.grip = left ? in.LeftRemoteGripTrigger : in.RightRemoteGripTrigger;
+            const uint32_t maskA = left ? OVRFW::ovrApplFrameIn::kButtonX : OVRFW::ovrApplFrameIn::kButtonA;
+            const uint32_t maskB = left ? OVRFW::ovrApplFrameIn::kButtonY : OVRFW::ovrApplFrameIn::kButtonB;
+            st.buttonA = (in.AllButtons & maskA) != 0;
+            st.buttonB = (in.AllButtons & maskB) != 0;
+            st.buttonX = (in.AllButtons & OVRFW::ovrApplFrameIn::kButtonX) != 0;
+            st.buttonY = (in.AllButtons & OVRFW::ovrApplFrameIn::kButtonY) != 0;
+            st.buttonMenu = (in.AllButtons & OVRFW::ovrApplFrameIn::kButtonMenu) != 0;
+            st.triggerClick = left ? in.LeftRemoteIndexClick : in.RightRemoteIndexClick;
+            st.gripClick = (in.AllButtons & OVRFW::ovrApplFrameIn::kGripTrigger) != 0;
+            st.stickClick = (in.AllButtons & (left ? OVRFW::ovrApplFrameIn::kButtonLeftThumbStick : OVRFW::ovrApplFrameIn::kButtonRightThumbStick)) != 0;
+            st.rawButtons = in.AllButtons;
+            return st;
+        };
+
+        controllerStates_[0] = buildControllerState(true);
+        controllerStates_[1] = buildControllerState(false);
+
         if (ctx_)
         {
+            ctx_->SetControllerState(CTX::Hand::Left, controllerStates_[0]);
+            ctx_->SetControllerState(CTX::Hand::Right, controllerStates_[1]);
             ctx_->Update(in.DeltaSeconds);
-            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonA))
+            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonA) || in.Clicked(OVRFW::ovrApplFrameIn::kButtonX))
             {
                 TriggerAction(CTX::Action::ButtonA, 1.0f, OVR::Vector3f(0.0f), true);
             }
-            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonB))
+            if (in.Clicked(OVRFW::ovrApplFrameIn::kButtonB) || in.Clicked(OVRFW::ovrApplFrameIn::kButtonY))
             {
                 TriggerAction(CTX::Action::ButtonB, 1.0f, OVR::Vector3f(0.0f), true);
             }
 
-            // Map controller triggers to the same pinch actions as hand tracking
             const float triggerOn = 0.15f;
 
             const bool leftNow = in.LeftRemoteIndexTrigger > triggerOn;
@@ -385,7 +475,7 @@ public:
         UpdateHandTracking(in);
 
         // Acquire environment depth; if valid, enable occlusion globally.
-        if (envDepthProvider_.AcquireAndUpload(in.PredictedDisplayTime))
+        if (envDepthEnabled_ && envDepthProvider_.AcquireAndUpload(in.PredictedDisplayTime, CurrentSpace))
         {
             // Bind on all models for now
             if (ctx_)
@@ -403,7 +493,7 @@ public:
         }
         else
         {
-            if (ctx_)
+            if (envDepthEnabled_ && ctx_)
             {
                 for (auto &m : ctx_->Models())
                 {
@@ -418,15 +508,26 @@ public:
     virtual void Render(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override
     {
         // RENDER_MOD_ENTRY
-        /// Render controllers
-        if (in.LeftRemoteTracked)
+        const bool renderLeftHand = handRendererReadyL_ && handMeshSupported_ && handStates_[0].isActive && handMeshL_.mesh.vertexCountOutput > 0;
+        const bool renderRightHand = handRendererReadyR_ && handMeshSupported_ && handStates_[1].isActive && handMeshR_.mesh.vertexCountOutput > 0;
+
+        if (renderLeftHand)
+        {
+            handRendererL_.Render(out.Surfaces);
+        }
+        else if (controllerStates_[0].tracked)
         {
             controllerRenderL_.Render(out.Surfaces);
         }
-        // if (in.RightRemoteTracked)
-        // {
-        //     controllerRenderR_.Render(out.Surfaces);
-        // }
+
+        if (renderRightHand)
+        {
+            handRendererR_.Render(out.Surfaces);
+        }
+        else if (controllerStates_[1].tracked)
+        {
+            controllerRenderR_.Render(out.Surfaces);
+        }
         if (ctx_)
         {
             ctx_->RenderAll(out.Surfaces);
@@ -484,21 +585,28 @@ private:
     // PRIVATE_ENTRY
     OVRFW::ControllerRenderer controllerRenderL_;
     OVRFW::ControllerRenderer controllerRenderR_;
+    OVRFW::HandRenderer handRendererL_;
+    OVRFW::HandRenderer handRendererR_;
+    bool handRendererReadyL_ = false;
+    bool handRendererReadyR_ = false;
     std::unique_ptr<CTX::Context> ctx_;
     XrCompositionLayerAlphaBlendFB alphaBlend_{};
     bool alphaBlendSupported_ = false;
     bool controllerModelExtSupported_ = false;
+    bool handMeshSupported_ = false;
     // Passthrough handles
     XrPassthroughFB passthrough_ = XR_NULL_HANDLE;
     XrPassthroughLayerFB passthroughLayer_ = XR_NULL_HANDLE;
     bool passthroughActive_ = false;
 
     EnvironmentDepthProvider envDepthProvider_{};
+    bool envDepthEnabled_ = false;
 
     // Hand tracking state
     PFN_xrCreateHandTrackerEXT pfnCreateHandTracker_ = nullptr;
     PFN_xrDestroyHandTrackerEXT pfnDestroyHandTracker_ = nullptr;
     PFN_xrLocateHandJointsEXT pfnLocateHandJoints_ = nullptr;
+    PFN_xrGetHandMeshFB pfnGetHandMeshFB_ = nullptr;
     PFN_xrGetControllerModelKeyMSFT pfnGetControllerModelKeyMSFT_ = nullptr;
     PFN_xrLoadControllerModelMSFT pfnLoadControllerModelMSFT_ = nullptr;
     XrHandTrackerEXT leftHandTracker_ = XR_NULL_HANDLE;
@@ -508,6 +616,23 @@ private:
     bool rightPinchActive_ = false;
     std::vector<uint8_t> controllerModelBufL_;
     std::vector<uint8_t> controllerModelBufR_;
+    struct HandMeshBuffers
+    {
+        XrHandTrackingMeshFB mesh{XR_TYPE_HAND_TRACKING_MESH_FB};
+        std::vector<XrVector3f> vertexPositions;
+        std::vector<XrVector3f> vertexNormals;
+        std::vector<XrVector2f> vertexUVs;
+        std::vector<XrVector4sFB> vertexBlendIndices;
+        std::vector<XrVector4f> vertexBlendWeights;
+        std::vector<int16_t> indices;
+        std::vector<XrPosef> jointBindPoses;
+        std::vector<float> jointRadii;
+        std::vector<XrHandJointEXT> jointParents;
+    };
+    HandMeshBuffers handMeshL_{};
+    HandMeshBuffers handMeshR_{};
+    CTX::HandState handStates_[2]{};
+    CTX::ControllerState controllerStates_[2]{};
 
     void InitHandTracking()
     {
@@ -531,6 +656,20 @@ private:
         {
             handTrackingEnabled_ = true;
         }
+
+        if (handTrackingEnabled_ && handMeshSupported_)
+        {
+            AllocateHandMesh(handMeshL_);
+            AllocateHandMesh(handMeshR_);
+            if (TryLoadHandMesh(leftHandTracker_, handMeshL_))
+            {
+                handRendererReadyL_ = handRendererL_.Init(&handMeshL_.mesh, true);
+            }
+            if (TryLoadHandMesh(rightHandTracker_, handMeshR_))
+            {
+                handRendererReadyR_ = handRendererR_.Init(&handMeshR_.mesh, false);
+            }
+        }
     }
 
     void UpdateHandTracking(const OVRFW::ovrApplFrameIn &in)
@@ -538,10 +677,17 @@ private:
         if (!handTrackingEnabled_ || !pfnLocateHandJoints_)
             return;
 
-        auto process = [&](XrHandTrackerEXT tracker, CTX::Action action, bool &activeFlag)
+        auto process = [&](XrHandTrackerEXT tracker, CTX::Action action, bool &activeFlag, CTX::HandState &outState, OVRFW::HandRenderer *renderer)
         {
+            outState = CTX::HandState{};
             if (tracker == XR_NULL_HANDLE)
+            {
+                if (ctx_)
+                {
+                    ctx_->SetHandState(action == CTX::Action::PinchLeft ? CTX::Hand::Left : CTX::Hand::Right, outState);
+                }
                 return;
+            }
             XrHandJointsLocateInfoEXT li{XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
             li.baseSpace = CurrentSpace;
             li.time = in.PredictedDisplayTime;
@@ -556,8 +702,28 @@ private:
                     TriggerPinch(action, 0.0f, OVR::Vector3f(0.0f), false);
                     activeFlag = false;
                 }
+                if (ctx_)
+                {
+                    ctx_->SetHandState(action == CTX::Action::PinchLeft ? CTX::Hand::Left : CTX::Hand::Right, outState);
+                }
                 return;
             }
+
+            outState.isActive = locs.isActive == XR_TRUE;
+            outState.highConfidence = (locs.isActive == XR_TRUE);
+            for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
+            {
+                const auto &j = joints[i];
+                CTX::HandJoint joint{};
+                joint.pose = FromXrPosef(j.pose);
+                joint.radius = j.radius;
+                joint.valid = (j.locationFlags & (XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)) ==
+                              (XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+                outState.joints[i] = joint;
+            }
+            outState.root = outState.joints[XR_HAND_JOINT_WRIST_EXT].pose;
+            outState.scale = 1.0f;
+
             const auto &thumb = joints[XR_HAND_JOINT_THUMB_TIP_EXT];
             const auto &index = joints[XR_HAND_JOINT_INDEX_TIP_EXT];
             OVR::Vector3f t(thumb.pose.position.x, thumb.pose.position.y, thumb.pose.position.z);
@@ -576,10 +742,20 @@ private:
                 TriggerPinch(action, 0.0f, (t + i) * 0.5f, false);
                 activeFlag = false;
             }
+
+            if (renderer)
+            {
+                renderer->Update(joints, 1.0f);
+            }
+
+            if (ctx_)
+            {
+                ctx_->SetHandState(action == CTX::Action::PinchLeft ? CTX::Hand::Left : CTX::Hand::Right, outState);
+            }
         };
 
-        process(leftHandTracker_, CTX::Action::PinchLeft, leftPinchActive_);
-        process(rightHandTracker_, CTX::Action::PinchRight, rightPinchActive_);
+        process(leftHandTracker_, CTX::Action::PinchLeft, leftPinchActive_, handStates_[0], handRendererReadyL_ ? &handRendererL_ : nullptr);
+        process(rightHandTracker_, CTX::Action::PinchRight, rightPinchActive_, handStates_[1], handRendererReadyR_ ? &handRendererR_ : nullptr);
     }
 
     void TriggerPinch(CTX::Action action, float strength, const OVR::Vector3f &pos, bool active)
@@ -596,6 +772,93 @@ private:
             return;
         CTX::ActionEvent evt{action, strength, pos, active};
         ctx_->Trigger(evt);
+    }
+
+    void AllocateHandMesh(HandMeshBuffers &buffers)
+    {
+        // Capacity based on current Quest hand mesh (around 780 verts / 1536 indices)
+        const uint32_t kMaxVerts = 1024;
+        const uint32_t kMaxIndices = 4096;
+        buffers.vertexPositions.resize(kMaxVerts);
+        buffers.vertexNormals.resize(kMaxVerts);
+        buffers.vertexUVs.resize(kMaxVerts);
+        buffers.vertexBlendIndices.resize(kMaxVerts);
+        buffers.vertexBlendWeights.resize(kMaxVerts);
+        buffers.indices.resize(kMaxIndices);
+        buffers.jointBindPoses.resize(XR_HAND_JOINT_COUNT_EXT);
+        buffers.jointRadii.resize(XR_HAND_JOINT_COUNT_EXT);
+        buffers.jointParents.resize(XR_HAND_JOINT_COUNT_EXT);
+
+        buffers.mesh.next = nullptr;
+        buffers.mesh.vertexCapacityInput = kMaxVerts;
+        buffers.mesh.vertexPositions = buffers.vertexPositions.data();
+        buffers.mesh.vertexNormals = buffers.vertexNormals.data();
+        buffers.mesh.vertexUVs = buffers.vertexUVs.data();
+        buffers.mesh.vertexBlendIndices = buffers.vertexBlendIndices.data();
+        buffers.mesh.vertexBlendWeights = buffers.vertexBlendWeights.data();
+        buffers.mesh.indexCapacityInput = kMaxIndices;
+        buffers.mesh.indices = buffers.indices.data();
+        buffers.mesh.jointCapacityInput = XR_HAND_JOINT_COUNT_EXT;
+        buffers.mesh.jointBindPoses = buffers.jointBindPoses.data();
+        buffers.mesh.jointRadii = buffers.jointRadii.data();
+        buffers.mesh.jointParents = buffers.jointParents.data();
+    }
+
+    bool TryLoadHandMesh(XrHandTrackerEXT tracker, HandMeshBuffers &buffers)
+    {
+        if (!pfnGetHandMeshFB_ || tracker == XR_NULL_HANDLE)
+        {
+            return false;
+        }
+        buffers.mesh.vertexCountOutput = 0;
+        buffers.mesh.indexCountOutput = 0;
+        buffers.mesh.jointCountOutput = 0;
+        const XrResult res = pfnGetHandMeshFB_(tracker, &buffers.mesh);
+        return XR_SUCCEEDED(res) && buffers.mesh.vertexCountOutput > 0 && buffers.mesh.indexCountOutput > 0;
+    }
+
+    bool LoadControllerModel(bool left)
+    {
+        if (!controllerModelExtSupported_ || !pfnGetControllerModelKeyMSFT_ || !pfnLoadControllerModelMSFT_)
+        {
+            return false;
+        }
+
+        XrPath userPath = left ? LeftHandPath : RightHandPath;
+        if (userPath == XR_NULL_PATH)
+        {
+            return false;
+        }
+
+        XrControllerModelKeyStateMSFT keyState{XR_TYPE_CONTROLLER_MODEL_KEY_STATE_MSFT};
+        if (pfnGetControllerModelKeyMSFT_(GetSession(), userPath, &keyState) != XR_SUCCESS)
+        {
+            return false;
+        }
+        if (keyState.modelKey == XR_NULL_CONTROLLER_MODEL_KEY_MSFT)
+        {
+            return false;
+        }
+
+        uint32_t bufSize = 0;
+        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, 0, &bufSize, nullptr) != XR_SUCCESS || bufSize == 0)
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> &buffer = left ? controllerModelBufL_ : controllerModelBufR_;
+        buffer.resize(bufSize);
+        uint32_t readSize = bufSize;
+        if (pfnLoadControllerModelMSFT_(GetSession(), keyState.modelKey, bufSize, &readSize, buffer.data()) != XR_SUCCESS)
+        {
+            return false;
+        }
+
+        if (left)
+        {
+            return controllerRenderL_.LoadModelFromGlbBuffer(buffer.data(), readSize);
+        }
+        return controllerRenderR_.LoadModelFromGlbBuffer(buffer.data(), readSize);
     }
 
     bool leftTriggerHeld_ = false;

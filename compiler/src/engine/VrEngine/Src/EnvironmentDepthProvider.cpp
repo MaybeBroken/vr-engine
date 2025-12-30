@@ -17,6 +17,8 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
     // Load META environment depth function pointers (swapchain-based API)
     xrGetInstanceProcAddr(instance_, "xrCreateEnvironmentDepthProviderMETA", (PFN_xrVoidFunction *)&pfnCreateProvider_);
     xrGetInstanceProcAddr(instance_, "xrDestroyEnvironmentDepthProviderMETA", (PFN_xrVoidFunction *)&pfnDestroyProvider_);
+    xrGetInstanceProcAddr(instance_, "xrStartEnvironmentDepthProviderMETA", (PFN_xrVoidFunction *)&pfnStartProvider_);
+    xrGetInstanceProcAddr(instance_, "xrStopEnvironmentDepthProviderMETA", (PFN_xrVoidFunction *)&pfnStopProvider_);
     xrGetInstanceProcAddr(instance_, "xrCreateEnvironmentDepthSwapchainMETA", (PFN_xrVoidFunction *)&pfnCreateSwapchain_);
     xrGetInstanceProcAddr(instance_, "xrDestroyEnvironmentDepthSwapchainMETA", (PFN_xrVoidFunction *)&pfnDestroySwapchain_);
     xrGetInstanceProcAddr(instance_, "xrEnumerateEnvironmentDepthSwapchainImagesMETA", (PFN_xrVoidFunction *)&pfnEnumSwapchainImages_);
@@ -29,16 +31,21 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
     xrGetInstanceProcAddr(instance_, "xrGetEnvironmentDepthFrameStateMETA", (PFN_xrVoidFunction *)&pfnGetFrameState_);
 #endif
 
-    // Detect API availability: prefer new swapchain acquire/release; otherwise fall back to legacy
-    const bool newApiAvailable = (pfnCreateProvider_ && pfnCreateSwapchain_ && pfnEnumSwapchainImages_ && pfnAcquireImage_ && pfnReleaseImage_);
+    // Detect API availability: prefer provider-based acquire (returns near/far) when available.
+    const bool providerAcquireAvailable = (pfnCreateProvider_ && pfnCreateSwapchain_ && pfnEnumSwapchainImages_ && pfnAcquireImageOld_);
+    const bool swapchainAcquireAvailable = (pfnCreateProvider_ && pfnCreateSwapchain_ && pfnEnumSwapchainImages_ && pfnAcquireImage_ && pfnReleaseImage_);
 #if defined(XR_TYPE_ENVIRONMENT_DEPTH_FRAME_STATE_META)
     const bool oldFrameAvailable = (pfnGetFrameState_ != nullptr);
 #else
     const bool oldFrameAvailable = false;
 #endif
-    const bool oldAcquireAvailable = (pfnCreateProvider_ && pfnCreateSwapchain_ && pfnEnumSwapchainImages_ && pfnAcquireImageOld_);
 
-    if (newApiAvailable)
+    if (providerAcquireAvailable)
+    {
+        apiMode_ = DepthApiMode::kAcquireImage;
+        useOldFrameApi_ = false;
+    }
+    else if (swapchainAcquireAvailable)
     {
         apiMode_ = DepthApiMode::kNewSwapchain;
         useOldFrameApi_ = false;
@@ -46,11 +53,6 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
     else if (oldFrameAvailable)
     {
         apiMode_ = DepthApiMode::kFrameState;
-        useOldFrameApi_ = true;
-    }
-    else if (oldAcquireAvailable)
-    {
-        apiMode_ = DepthApiMode::kAcquireImage;
         useOldFrameApi_ = true;
     }
     else
@@ -131,6 +133,19 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
                 lastH_ = (int)state.height;
             }
         }
+
+        // Start depth provider when the runtime exposes it; older headers may omit start/stop APIs.
+        if (pfnStartProvider_ && !providerStarted_)
+        {
+            if (pfnStartProvider_(provider_) == XR_SUCCESS)
+            {
+                providerStarted_ = true;
+            }
+            else
+            {
+                std::printf("[EnvDepth] Failed to start environment depth provider.\n");
+            }
+        }
     }
 
     supported_ = true;
@@ -142,6 +157,13 @@ bool EnvironmentDepthProvider::Init(XrInstance instance, XrSession session)
 
 void EnvironmentDepthProvider::Shutdown()
 {
+    // Stop the provider first if it was explicitly started.
+    if (providerStarted_ && pfnStopProvider_ && provider_ != XR_NULL_HANDLE)
+    {
+        pfnStopProvider_(provider_);
+        providerStarted_ = false;
+    }
+
     if (apiMode_ == DepthApiMode::kNewSwapchain)
     {
         // Release any outstanding image (new API only)
@@ -177,11 +199,12 @@ void EnvironmentDepthProvider::Shutdown()
             provider_ = XR_NULL_HANDLE;
         }
     }
+    supported_ = false;
 }
 
-bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
+bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime, XrSpace baseSpace)
 {
-    if (!supported_ && !useOldFrameApi_ && apiMode_ == DepthApiMode::kUnknown)
+    if (!supported_ || apiMode_ == DepthApiMode::kUnknown)
     {
         return false;
     }
@@ -207,6 +230,8 @@ bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
         depthTex_ = (GLuint)frameState.environmentDepthTexture;
         lastW_ = (int)frameState.width;
         lastH_ = (int)frameState.height;
+        nearMeters_ = frameState.nearZ;
+        farMeters_ = frameState.farZ;
         return depthTex_ != 0;
     }
 #else
@@ -221,7 +246,7 @@ bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
         XrEnvironmentDepthImageAcquireInfoMETA acquireInfo{};
         acquireInfo.type = (XrStructureType)XR_TYPE_ENVIRONMENT_DEPTH_IMAGE_ACQUIRE_INFO_META;
         acquireInfo.next = nullptr;
-        acquireInfo.space = XR_NULL_HANDLE;
+        acquireInfo.space = baseSpace;
         acquireInfo.displayTime = predictedTime;
 
         XrEnvironmentDepthImageMETA envImage{};
@@ -259,7 +284,7 @@ bool EnvironmentDepthProvider::AcquireAndUpload(XrTime predictedTime)
         XrEnvironmentDepthImageAcquireInfoMETA acquireInfo{};
         acquireInfo.type = (XrStructureType)XR_TYPE_ENVIRONMENT_DEPTH_IMAGE_ACQUIRE_INFO_META;
         acquireInfo.next = nullptr;
-        acquireInfo.space = XR_NULL_HANDLE; // not used in this path
+        acquireInfo.space = baseSpace; // not used in this path but set for future compatibility
         acquireInfo.displayTime = predictedTime;
 
         uint32_t imageIndex = 0;

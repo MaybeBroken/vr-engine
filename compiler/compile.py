@@ -12,6 +12,7 @@ import base64
 import time
 from typing import Optional
 import atexit
+import subprocess
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 try:
@@ -472,7 +473,6 @@ class Compiler:
 
     def assemble_source(self):
         self.compiled_project, self.manifest_content = self.project.build_project()
-        time.sleep(2)
         with open(self.root_file, "r", encoding="utf-8-sig", errors="ignore") as f:
             root_content = f.read()
 
@@ -706,6 +706,110 @@ def open_android_studio(project_path: pathlib.Path):
         print("Android Studio launched with the generated project.")
 
 
+def _run_with_pipe(
+    cmd,
+    cwd: pathlib.Path,
+    custom_pipe,
+    use_pty: bool = False,
+    stop_event=None,
+):
+    """Run command streaming output to custom_pipe. Optionally wrap in a PTY for TTY-aware tools.
+
+    stop_event: threading.Event-like with is_set(); if set, terminate process early.
+    """
+    if use_pty:
+        if os.name == "nt":
+            try:
+                import pywinpty
+
+                proc = pywinpty.PtyProcess.spawn(cmd, cwd=str(cwd))
+                while proc.isalive():
+                    if stop_event is not None and stop_event.is_set():
+                        try:
+                            proc.terminate()
+                        except Exception:
+                            pass
+                        break
+                    try:
+                        data = proc.read(1024)
+                    except EOFError:
+                        break
+                    if data:
+                        try:
+                            custom_pipe.write(data)
+                        except Exception:
+                            pass
+                return proc.exitstatus
+            except Exception:
+                # Fall back to non-PTY streaming
+                pass
+        else:
+            import pty
+            import os as _os
+
+            master, slave = pty.openpty()
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(cwd),
+                stdin=slave,
+                stdout=slave,
+                stderr=slave,
+                text=False,
+                bufsize=0,
+            )
+            _os.close(slave)
+            try:
+                while True:
+                    if stop_event is not None and stop_event.is_set():
+                        try:
+                            proc.terminate()
+                        except Exception:
+                            pass
+                        break
+                    data = _os.read(master, 1024)
+                    if data:
+                        try:
+                            custom_pipe.write(data.decode(errors="replace"))
+                        except Exception:
+                            pass
+                    if proc.poll() is not None and not data:
+                        break
+            finally:
+                try:
+                    _os.close(master)
+                except Exception:
+                    pass
+            return proc.returncode
+
+    # Fallback: regular pipe streaming
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        if proc.stdout:
+            for line in proc.stdout:
+                if stop_event is not None and stop_event.is_set():
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+                    break
+                try:
+                    custom_pipe.write(line)
+                except Exception:
+                    pass
+        proc.wait()
+    finally:
+        if proc.stdout:
+            proc.stdout.close()
+    return proc
+
+
 if __name__ == "__main__":
     project = Project(input("Enter the name of the project to compile: "))
     compiler = Compiler(project)
@@ -718,10 +822,49 @@ if __name__ == "__main__":
         open_android_studio(compiler.project_dir)
 
 
-def build_project(project_name: str, open_in_android_studio: bool = False):
+def build_project(
+    project_name: str,
+    open_in_android_studio: bool = False,
+    compile_with_gradle: bool = False,
+    custom_pipe: Optional[str] = None,
+    use_pty: bool = False,
+    stop_event=None,
+):
     project = Project(project_name)
     compiler = Compiler(project)
     compiler.compile()
 
     if open_in_android_studio:
         open_android_studio(compiler.project_dir)
+    elif compile_with_gradle:
+        import subprocess
+
+        gradle_path = compiler.project_dir.parent.parent
+        if sys.platform == "win32":
+            gradlew = gradle_path / "gradlew.bat"
+        else:
+            gradlew = gradle_path / "gradlew"
+        if not gradlew.exists():
+            print(f"Gradle wrapper not found at {gradlew}. Cannot compile with Gradle.")
+            return None
+        print(f"Compiling project {project_name} with Gradle...")
+        cmd = [
+            str(gradlew),
+            "clean",
+            # ":" + project.name + ":" +
+            "assembleDebug",
+            "--console=rich"
+        ]
+
+        # If a custom pipe is provided (e.g., a GUI console widget), stream output
+        # line-by-line instead of passing the widget directly to subprocess.
+        if custom_pipe:
+            return _run_with_pipe(
+                cmd,
+                gradle_path,
+                custom_pipe,
+                use_pty=use_pty,
+                stop_event=stop_event,
+            )
+
+        return subprocess.run(cmd, cwd=str(gradle_path), text=True)
