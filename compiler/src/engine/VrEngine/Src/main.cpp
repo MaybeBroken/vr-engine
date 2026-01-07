@@ -508,14 +508,14 @@ public:
     virtual void Render(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override
     {
         // RENDER_MOD_ENTRY
-        const bool renderLeftHand = handRendererReadyL_ && handMeshSupported_ && handStates_[0].isActive && handMeshL_.mesh.vertexCountOutput > 0;
-        const bool renderRightHand = handRendererReadyR_ && handMeshSupported_ && handStates_[1].isActive && handMeshR_.mesh.vertexCountOutput > 0;
+        const bool renderLeftHand = handTrackingActive_ && handRendererReadyL_ && handMeshSupported_ && handStates_[0].isActive && handMeshL_.mesh.vertexCountOutput > 0;
+        const bool renderRightHand = handTrackingActive_ && handRendererReadyR_ && handMeshSupported_ && handStates_[1].isActive && handMeshR_.mesh.vertexCountOutput > 0;
 
         if (renderLeftHand)
         {
             handRendererL_.Render(out.Surfaces);
         }
-        else if (controllerStates_[0].tracked)
+        else if (!handTrackingActive_ && controllerStates_[0].tracked)
         {
             controllerRenderL_.Render(out.Surfaces);
         }
@@ -524,7 +524,7 @@ public:
         {
             handRendererR_.Render(out.Surfaces);
         }
-        else if (controllerStates_[1].tracked)
+        else if (!handTrackingActive_ && controllerStates_[1].tracked)
         {
             controllerRenderR_.Render(out.Surfaces);
         }
@@ -589,6 +589,7 @@ private:
     OVRFW::HandRenderer handRendererR_;
     bool handRendererReadyL_ = false;
     bool handRendererReadyR_ = false;
+    bool handTrackingActive_ = false;
     std::unique_ptr<CTX::Context> ctx_;
     XrCompositionLayerAlphaBlendFB alphaBlend_{};
     bool alphaBlendSupported_ = false;
@@ -677,6 +678,8 @@ private:
         if (!handTrackingEnabled_ || !pfnLocateHandJoints_)
             return;
 
+        bool anyHandActive = false;
+
         auto process = [&](XrHandTrackerEXT tracker, CTX::Action action, bool &activeFlag, CTX::HandState &outState, OVRFW::HandRenderer *renderer)
         {
             outState = CTX::HandState{};
@@ -711,6 +714,7 @@ private:
 
             outState.isActive = locs.isActive == XR_TRUE;
             outState.highConfidence = (locs.isActive == XR_TRUE);
+            anyHandActive = anyHandActive || (locs.isActive == XR_TRUE);
             for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
             {
                 const auto &j = joints[i];
@@ -756,6 +760,8 @@ private:
 
         process(leftHandTracker_, CTX::Action::PinchLeft, leftPinchActive_, handStates_[0], handRendererReadyL_ ? &handRendererL_ : nullptr);
         process(rightHandTracker_, CTX::Action::PinchRight, rightPinchActive_, handStates_[1], handRendererReadyR_ ? &handRendererR_ : nullptr);
+
+        handTrackingActive_ = anyHandActive;
     }
 
     void TriggerPinch(CTX::Action action, float strength, const OVR::Vector3f &pos, bool active)
